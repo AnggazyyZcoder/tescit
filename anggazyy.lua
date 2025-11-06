@@ -3,7 +3,8 @@ local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jens
 -- Floating Icon
 local ScreenGui = Instance.new("ScreenGui")
 local OpenButton = Instance.new("ImageButton")
-local UIScale = Instance.new("UIScale")
+local UICorner = Instance.new("UICorner")
+local UIStroke = Instance.new("UIStroke")
 
 ScreenGui.Parent = game.CoreGui
 ScreenGui.Name = "AnggazyyHubUI"
@@ -12,42 +13,28 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 OpenButton.Parent = ScreenGui
 OpenButton.Size = UDim2.new(0, 60, 0, 60)
 OpenButton.Position = UDim2.new(0, 20, 0.5, -30)
-OpenButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-OpenButton.BackgroundTransparency = 0.2
+OpenButton.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+OpenButton.BackgroundTransparency = 0.1
 OpenButton.AutoButtonColor = false
-OpenButton.Image = "rbxassetid://7072717775" -- Ganti dengan asset ID logo yang bagus
-OpenButton.ScaleType = Enum.ScaleType.Crop
+OpenButton.Image = "rbxassetid://7072717775" -- Logo Hub
+OpenButton.ScaleType = Enum.ScaleType.Fit
 OpenButton.BorderSizePixel = 0
-OpenButton.ClipsDescendants = true
+OpenButton.Visible = false
 
 -- Corner radius
-local UICorner = Instance.new("UICorner")
 UICorner.Parent = OpenButton
-UICorner.CornerRadius = UDim.new(0.3, 0)
+UICorner.CornerRadius = UDim.new(0.2, 0)
 
--- Shadow effect
-local UIStroke = Instance.new("UIStroke")
+-- Border effect
 UIStroke.Parent = OpenButton
 UIStroke.Color = Color3.fromRGB(100, 100, 255)
 UIStroke.Thickness = 2
-UIStroke.Transparency = 0.5
+UIStroke.Transparency = 0.3
 
--- Animation variables
-local isOpen = false
-local isAnimating = false
-
--- Floating animation
-spawn(function()
-    while true do
-        for i = 0, 1, 0.05 do
-            if OpenButton then
-                OpenButton.Position = UDim2.new(0, 20, 0.5, -30 + math.sin(tick() * 3) * 5)
-                OpenButton.Rotation = math.sin(tick() * 2) * 3
-            end
-            wait(0.03)
-        end
-    end
-end)
+-- Variables
+local isUIOpen = false
+local player = game.Players.LocalPlayer
+local coordinateDisplay = nil
 
 -- Loading Screen Function
 local function showLoadingScreen()
@@ -127,7 +114,7 @@ local function showLoadingScreen()
 
     -- Show loading animation
     spawn(function()
-        animateText("A N G G A Z Y Y  H U B", 0.1)
+        animateText("A N G G A Z Y Y  H U B", 0.08)
         wait(0.5)
         
         -- Fade out animation
@@ -143,6 +130,63 @@ local function showLoadingScreen()
         LoadingGui:Destroy()
         createMainUI()
     end)
+end
+
+-- Function to create coordinate display
+local function createCoordinateDisplay()
+    if coordinateDisplay then
+        coordinateDisplay:Destroy()
+    end
+
+    local CoordGui = Instance.new("ScreenGui")
+    local CoordFrame = Instance.new("Frame")
+    local CoordLabel = Instance.new("TextLabel")
+    local UICorner = Instance.new("UICorner")
+    local UIStroke = Instance.new("UIStroke")
+
+    CoordGui.Name = "CoordinateDisplay"
+    CoordGui.Parent = game.CoreGui
+    CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    CoordFrame.Parent = CoordGui
+    CoordFrame.Size = UDim2.new(0, 200, 0, 60)
+    CoordFrame.Position = UDim2.new(0.5, -100, 0, 20)
+    CoordFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    CoordFrame.BackgroundTransparency = 0.1
+    CoordFrame.BorderSizePixel = 0
+
+    UICorner.Parent = CoordFrame
+    UICorner.CornerRadius = UDim.new(0.1, 0)
+
+    UIStroke.Parent = CoordFrame
+    UIStroke.Color = Color3.fromRGB(100, 100, 255)
+    UIStroke.Thickness = 2
+
+    CoordLabel.Parent = CoordFrame
+    CoordLabel.Size = UDim2.new(1, 0, 1, 0)
+    CoordLabel.BackgroundTransparency = 1
+    CoordLabel.Text = "X: 0 | Y: 0 | Z: 0"
+    CoordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CoordLabel.TextSize = 14
+    CoordLabel.Font = Enum.Font.GothamBold
+    CoordLabel.TextStrokeTransparency = 0.8
+
+    coordinateDisplay = CoordGui
+
+    -- Update coordinates
+    spawn(function()
+        while CoordGui and CoordGui.Parent do
+            local character = player.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local pos = character.HumanoidRootPart.Position
+                CoordLabel.Text = string.format("X: %d | Y: %d | Z: %d", 
+                    math.floor(pos.X), math.floor(pos.Y), math.floor(pos.Z))
+            end
+            wait(0.1)
+        end
+    end)
+
+    return CoordGui
 end
 
 -- Main UI Creation
@@ -164,7 +208,7 @@ local function createMainUI()
 
     -- Player Section
     MainTab:AddSection({
-        Name = "Player"
+        Name = "Player Features"
     })
 
     MainTab:AddButton({
@@ -214,7 +258,7 @@ local function createMainUI()
 
     -- Game Section
     MainTab:AddSection({
-        Name = "Game"
+        Name = "Game Features"
     })
 
     MainTab:AddButton({
@@ -235,15 +279,21 @@ local function createMainUI()
         Default = false,
         Callback = function(Value)
             getgenv().Noclip = Value
+            OrionLib:MakeNotification({
+                Name = "Noclip " .. (Value and "Enabled" or "Disabled"),
+                Content = "Noclip feature " .. (Value and "activated" or "deactivated"),
+                Image = "rbxassetid://7072717775",
+                Time = 2
+            })
         end
     })
 
     -- Visual Section
     MainTab:AddSection({
-        Name = "Visual"
+        Name = "Visual Features"
     })
 
-    MainTab:AddToggle({
+    local espToggle = MainTab:AddToggle({
         Name = "Player ESP",
         Default = false,
         Callback = function(Value)
@@ -255,6 +305,34 @@ local function createMainUI()
             })
         end
     })
+
+    local coordinateToggle = MainTab:AddToggle({
+        Name = "Show Coordinates",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                createCoordinateDisplay()
+                OrionLib:MakeNotification({
+                    Name = "Coordinates Enabled",
+                    Content = "Player coordinates display activated",
+                    Image = "rbxassetid://7072717775",
+                    Time = 2
+                })
+            else
+                if coordinateDisplay then
+                    coordinateDisplay:Destroy()
+                    coordinateDisplay = nil
+                end
+            end
+        end
+    })
+
+    -- Teleport Section (untuk nanti)
+    MainTab:AddSection({
+        Name = "Teleport"
+    })
+
+    MainTab:AddParagraph("Teleport Menu", "Teleport features will be added soon!")
 
     -- Settings Tab
     local SettingsTab = Window:MakeTab({
@@ -268,6 +346,9 @@ local function createMainUI()
         Callback = function()
             OrionLib:Destroy()
             ScreenGui:Destroy()
+            if coordinateDisplay then
+                coordinateDisplay:Destroy()
+            end
         end
     })
 
@@ -276,58 +357,50 @@ local function createMainUI()
         Default = Enum.KeyCode.RightShift,
         Hold = false,
         Callback = function()
-            OrionLib:Toggle()
+            Window:Toggle()
         end
     })
 
     SettingsTab:AddParagraph("Credits", "✨ Anggazyy Hub v2.0\n🌟 Premium Roblox Script Hub\n💫 Created by Anggazyy")
 
-    -- Noclip loop
-    spawn(function()
-        while wait(0.1) do
-            if getgenv().Noclip then
-                local character = game.Players.LocalPlayer.Character
-                if character then
-                    for _, part in pairs(character:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then
-                            part.CanCollide = false
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
     -- Initialize Orion
     OrionLib:Init()
 
     -- Hide window initially
-    OrionLib:Toggle()
+    Window:Toggle()
 
-    -- Button click event
+    -- Button click event - hanya toggle UI, tidak buka tab
     OpenButton.MouseButton1Click:Connect(function()
-        if not isAnimating then
-            isAnimating = true
-            OrionLib:Toggle()
-            
-            -- Button animation
-            spawn(function()
-                for i = 1, 10 do
-                    OpenButton.Rotation = OpenButton.Rotation + 36
-                    wait(0.01)
-                end
-                OpenButton.Rotation = 0
-                isAnimating = false
-            end)
-        end
+        Window:Toggle()
+        isUIOpen = not isUIOpen
+        
+        -- Simple scale animation
+        spawn(function()
+            OpenButton.Size = UDim2.new(0, 55, 0, 55)
+            wait(0.1)
+            OpenButton.Size = UDim2.new(0, 60, 0, 60)
+        end)
     end)
+
+    -- Make floating icon visible
+    OpenButton.Visible = true
 end
+
+-- Noclip loop
+spawn(function()
+    while wait(0.1) do
+        if getgenv().Noclip then
+            local character = game.Players.LocalPlayer.Character
+            if character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end
+end)
 
 -- Start loading screen when script executes
 showLoadingScreen()
-
--- Make floating icon visible after loading
-spawn(function()
-    wait(3) -- Wait for loading screen to complete
-    OpenButton.Visible = true
-end)
