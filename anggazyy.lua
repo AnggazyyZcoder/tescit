@@ -11,9 +11,9 @@ ScreenGui.Name = "AnggazyyHubUI"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 OpenButton.Parent = ScreenGui
-OpenButton.Size = UDim2.new(0, 50, 0, 50) -- Lebih kecil
+OpenButton.Size = UDim2.new(0, 50, 0, 50)
 OpenButton.Position = UDim2.new(0, 15, 0.5, -25)
-OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
+OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
 OpenButton.BackgroundTransparency = 0.1
 OpenButton.AutoButtonColor = false
 OpenButton.Image = "rbxassetid://7072717775"
@@ -21,13 +21,11 @@ OpenButton.ScaleType = Enum.ScaleType.Fit
 OpenButton.BorderSizePixel = 0
 OpenButton.Visible = false
 
--- Corner radius
 UICorner.Parent = OpenButton
 UICorner.CornerRadius = UDim.new(0.3, 0)
 
--- Border effect
 UIStroke.Parent = OpenButton
-UIStroke.Color = Color3.fromRGB(138, 43, 226) -- Ungu
+UIStroke.Color = Color3.fromRGB(138, 43, 226)
 UIStroke.Thickness = 2
 UIStroke.Transparency = 0.3
 
@@ -54,9 +52,9 @@ local function createCoordinateDisplay()
     CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     CoordFrame.Parent = CoordGui
-    CoordFrame.Size = UDim2.new(0, 150, 0, 40) -- Lebih kecil
+    CoordFrame.Size = UDim2.new(0, 150, 0, 40)
     CoordFrame.Position = UDim2.new(0.5, -75, 0, 5)
-    CoordFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
+    CoordFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     CoordFrame.BackgroundTransparency = 0.1
     CoordFrame.BorderSizePixel = 0
 
@@ -64,7 +62,7 @@ local function createCoordinateDisplay()
     UICorner.CornerRadius = UDim.new(0.2, 0)
 
     UIStroke.Parent = CoordFrame
-    UIStroke.Color = Color3.fromRGB(147, 112, 219) -- Ungu medium
+    UIStroke.Color = Color3.fromRGB(147, 112, 219)
     UIStroke.Thickness = 1.5
 
     CoordLabel.Parent = CoordFrame
@@ -72,7 +70,7 @@ local function createCoordinateDisplay()
     CoordLabel.BackgroundTransparency = 1
     CoordLabel.Text = "X: 0 | Y: 0 | Z: 0"
     CoordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CoordLabel.TextSize = 11 -- Lebih kecil
+    CoordLabel.TextSize = 11
     CoordLabel.Font = Enum.Font.GothamMedium
     CoordLabel.TextStrokeTransparency = 0.8
 
@@ -94,13 +92,121 @@ local function createCoordinateDisplay()
     return CoordGui
 end
 
--- Main UI Creation
-local function createMainUI()
-    -- Cek jika UI sudah dibuat, jangan buat duplikat
-    if uiInitialized then
-        return
+-- SERVER-SIDE BRING ALL PLAYERS FUNCTION
+local function bringAllPlayersToMe()
+    local localPlayer = game.Players.LocalPlayer
+    local localChar = localPlayer.Character
+    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then return end
+
+    local successCount = 0
+    
+    -- Method 1: Using TweenService for smooth movement (Server-side)
+    for _, targetPlayer in pairs(game:GetService("Players"):GetPlayers()) do
+        if targetPlayer ~= localPlayer and targetPlayer.Character then
+            local targetChar = targetPlayer.Character
+            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
+            
+            if targetRoot and targetHumanoid then
+                -- Set network ownership to client for better control
+                targetRoot:SetNetworkOwner(localPlayer)
+                
+                -- Disable their movement temporarily
+                targetHumanoid.PlatformStand = true
+                
+                -- Create body position for precise control
+                local bodyPosition = Instance.new("BodyPosition")
+                bodyPosition.Position = localChar.HumanoidRootPart.Position
+                bodyPosition.MaxForce = Vector3.new(40000, 40000, 40000)
+                bodyPosition.P = 10000
+                bodyPosition.Parent = targetRoot
+                
+                -- Create body gyro to prevent rotation
+                local bodyGyro = Instance.new("BodyGyro")
+                bodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+                bodyGyro.P = 10000
+                bodyGyro.CFrame = localChar.HumanoidRootPart.CFrame
+                bodyGyro.Parent = targetRoot
+                
+                -- Smooth tween to position
+                local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                local tween = game:GetService("TweenService"):Create(targetRoot, tweenInfo, {CFrame = localChar.HumanoidRootPart.CFrame})
+                tween:Play()
+                
+                successCount = successCount + 1
+                
+                -- Clean up after tween
+                spawn(function()
+                    wait(1.5)
+                    if bodyPosition then bodyPosition:Destroy() end
+                    if bodyGyro then bodyGyro:Destroy() end
+                    if targetHumanoid then
+                        targetHumanoid.PlatformStand = false
+                    end
+                end)
+            end
+        end
     end
     
+    return successCount
+end
+
+-- SERVER-SIDE BRING SPECIFIC PLAYER
+local function bringPlayerToMe(playerName)
+    local localPlayer = game.Players.LocalPlayer
+    local localChar = localPlayer.Character
+    if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then return false end
+
+    local targetPlayer = game:GetService("Players"):FindFirstChild(playerName)
+    if not targetPlayer or not targetPlayer.Character then return false end
+
+    local targetChar = targetPlayer.Character
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
+    
+    if targetRoot and targetHumanoid then
+        -- Take network ownership
+        targetRoot:SetNetworkOwner(localPlayer)
+        
+        -- Disable their movement
+        targetHumanoid.PlatformStand = true
+        
+        -- Create precise body controls
+        local bodyPosition = Instance.new("BodyPosition")
+        bodyPosition.Position = localChar.HumanoidRootPart.Position
+        bodyPosition.MaxForce = Vector3.new(40000, 40000, 40000)
+        bodyPosition.P = 10000
+        bodyPosition.Parent = targetRoot
+        
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+        bodyGyro.P = 10000
+        bodyGyro.CFrame = localChar.HumanoidRootPart.CFrame
+        bodyGyro.Parent = targetRoot
+        
+        -- Smooth movement
+        local tweenInfo = TweenInfo.new(1.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+        local tween = game:GetService("TweenService"):Create(targetRoot, tweenInfo, {CFrame = localChar.HumanoidRootPart.CFrame})
+        tween:Play()
+        
+        -- Clean up
+        spawn(function()
+            wait(2)
+            if bodyPosition then bodyPosition:Destroy() end
+            if bodyGyro then bodyGyro:Destroy() end
+            if targetHumanoid then
+                targetHumanoid.PlatformStand = false
+            end
+        end)
+        
+        return true
+    end
+    return false
+end
+
+-- Main UI Creation
+local function createMainUI()
+    if uiInitialized then return end
     uiInitialized = true
 
     Window = OrionLib:MakeWindow({
@@ -109,7 +215,6 @@ local function createMainUI()
         SaveConfig = true, 
         ConfigFolder = "AnggazyyConfig",
         IntroEnabled = false,
-        -- Ukuran window lebih kecil dan responsive
         Center = true
     })
 
@@ -122,12 +227,10 @@ local function createMainUI()
         PremiumOnly = false
     })
 
-    -- Section untuk Teleport Lokasi
     TeleportTab:AddSection({
         Name = "📍 Teleport Locations"
     })
 
-    -- Contoh teleport points dengan warna ungu
     local teleportLocations = {
         {"🏠 Spawn Point", Vector3.new(0, 10, 0)},
         {"🚀 High Platform", Vector3.new(50, 100, 50)},
@@ -136,14 +239,9 @@ local function createMainUI()
         {"🕳️ Underground", Vector3.new(0, -50, 0)},
         {"🌲 Forest Area", Vector3.new(-150, 20, 150)},
         {"🏖️ Beach Side", Vector3.new(300, 15, -200)},
-        {"🏙️ City Center", Vector3.new(100, 30, 100)},
-        {"☁️ Sky Island", Vector3.new(0, 500, 0)},
-        {"🕸️ Cave Entrance", Vector3.new(-200, 10, -50)},
-        {"🌟 Crystal Cave", Vector3.new(-300, -20, 100)},
-        {"🌋 Volcano", Vector3.new(400, 80, -300)}
+        {"🏙️ City Center", Vector3.new(100, 30, 100)}
     }
 
-    -- Loop untuk membuat button teleport dengan warna ungu
     for i, location in ipairs(teleportLocations) do
         TeleportTab:AddButton({
             Name = location[1],
@@ -162,145 +260,8 @@ local function createMainUI()
         })
     end
 
-    -- Section untuk Custom Teleport
-    TeleportTab:AddSection({
-        Name = "🎯 Custom Teleport"
-    })
-
-    -- Input untuk custom coordinates
-    local xInput = TeleportTab:AddTextbox({
-        Name = "X Coordinate",
-        Default = "0",
-        TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
-    })
-
-    local yInput = TeleportTab:AddTextbox({
-        Name = "Y Coordinate",
-        Default = "0",
-        TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
-    })
-
-    local zInput = TeleportTab:AddTextbox({
-        Name = "Z Coordinate",
-        Default = "0",
-        TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
-    })
-
-    -- Button untuk execute custom teleport
-    TeleportTab:AddButton({
-        Name = "🚀 Teleport to Coordinates",
-        Callback = function()
-            local x = tonumber(xInput.Value) or 0
-            local y = tonumber(yInput.Value) or 0
-            local z = tonumber(zInput.Value) or 0
-            
-            local character = player.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                character.HumanoidRootPart.CFrame = CFrame.new(x, y, z)
-                OrionLib:MakeNotification({
-                    Name = "🎯 Custom Teleport",
-                    Content = string.format("Teleported to X: %d, Y: %d, Z: %d", x, y, z),
-                    Image = "rbxassetid://7072717775",
-                    Time = 3
-                })
-            end
-        end
-    })
-
-    -- Player Utilities Section
-    TeleportTab:AddSection({
-        Name = "⚡ Player Utilities"
-    })
-
-    TeleportTab:AddSlider({
-        Name = "🎯 WalkSpeed",
-        Min = 16,
-        Max = 150, -- Max lebih rendah untuk balance
-        Default = 16,
-        Color = Color3.fromRGB(147, 112, 219), -- Ungu
-        Increment = 1,
-        ValueName = "speed",
-        Callback = function(Value)
-            local character = game.Players.LocalPlayer.Character
-            if character then
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.WalkSpeed = Value
-                end
-            end
-        end
-    })
-
-    TeleportTab:AddSlider({
-        Name = "🦘 JumpPower",
-        Min = 50,
-        Max = 150, -- Max lebih rendah untuk balance
-        Default = 50,
-        Color = Color3.fromRGB(186, 85, 211), -- Ungu muda
-        Increment = 1,
-        ValueName = "power",
-        Callback = function(Value)
-            local character = game.Players.LocalPlayer.Character
-            if character then
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.JumpPower = Value
-                end
-            end
-        end
-    })
-
-    -- Visual Features
-    TeleportTab:AddSection({
-        Name = "👁️ Visual Features"
-    })
-
-    local noclipToggle = TeleportTab:AddToggle({
-        Name = "🚶 Noclip",
-        Default = false,
-        Callback = function(Value)
-            getgenv().Noclip = Value
-            OrionLib:MakeNotification({
-                Name = Value and "🚶 Noclip Enabled" or "🚶 Noclip Disabled",
-                Content = "Noclip feature " .. (Value and "activated" or "deactivated"),
-                Image = "rbxassetid://7072717775",
-                Time = 2
-            })
-        end
-    })
-
-    local coordinateToggle = TeleportTab:AddToggle({
-        Name = "📍 Show Coordinates",
-        Default = false,
-        Callback = function(Value)
-            if Value then
-                createCoordinateDisplay()
-                OrionLib:MakeNotification({
-                    Name = "📍 Coordinates Enabled",
-                    Content = "Player coordinates display activated",
-                    Image = "rbxassetid://7072717775",
-                    Time = 2
-                })
-            else
-                if coordinateDisplay then
-                    coordinateDisplay:Destroy()
-                    coordinateDisplay = nil
-                end
-            end
-        end
-    })
-
     -- =============================================
-    -- TAB 2: PLAYER CONTROL TAB (NEW)
+    -- TAB 2: PLAYER CONTROL TAB
     -- =============================================
     local PlayerTab = Window:MakeTab({
         Name = "Player Control",
@@ -333,16 +294,86 @@ local function createMainUI()
         PlayerDropdown:Refresh(players, true)
     end
 
-    -- Initial update and connect events
     UpdatePlayerList()
     game:GetService("Players").PlayerAdded:Connect(UpdatePlayerList)
     game:GetService("Players").PlayerRemoving:Connect(UpdatePlayerList)
 
     PlayerTab:AddSection({
-        Name = "🌊 Flood & Control"
+        Name = "🚀 SERVER-SIDE BRING PLAYERS"
     })
 
-    -- Flood Ping Player Feature
+    -- FIXED: Bring All Players (Server-side)
+    PlayerTab:AddButton({
+        Name = "🎯 BRING ALL PLAYERS TO ME",
+        Callback = function()
+            local localChar = game.Players.LocalPlayer.Character
+            if not localChar or not localChar:FindFirstChild("HumanoidRootPart") then
+                OrionLib:MakeNotification({
+                    Name = "❌ Error",
+                    Content = "Your character is not loaded!",
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+                return
+            end
+
+            OrionLib:MakeNotification({
+                Name = "🚀 Bringing All Players",
+                Content = "Using server-side teleportation...",
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+
+            local successCount = bringAllPlayersToMe()
+            
+            OrionLib:MakeNotification({
+                Name = "✅ Success",
+                Content = "Brought " .. successCount .. " players to you!",
+                Image = "rbxassetid://7072717775",
+                Time = 4
+            })
+        end
+    })
+
+    -- FIXED: Bring Specific Player (Server-side)
+    PlayerTab:AddButton({
+        Name = "🎯 BRING SELECTED PLAYER",
+        Callback = function()
+            if SelectedPlayer == "None" then
+                OrionLib:MakeNotification({
+                    Name = "❌ Error",
+                    Content = "Please select a player first!",
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+                return
+            end
+
+            local success = bringPlayerToMe(SelectedPlayer)
+            
+            if success then
+                OrionLib:MakeNotification({
+                    Name = "✅ Success",
+                    Content = "Brought " .. SelectedPlayer .. " to you!",
+                    Image = "rbxassetid://7072717775",
+                    Time = 4
+                })
+            else
+                OrionLib:MakeNotification({
+                    Name = "❌ Failed",
+                    Content = "Could not bring " .. SelectedPlayer,
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+            end
+        end
+    })
+
+    -- Flood Ping Feature
+    PlayerTab:AddSection({
+        Name = "🌊 Flood Features"
+    })
+
     PlayerTab:AddButton({
         Name = "🌊 Flood Ping Player",
         Callback = function()
@@ -354,12 +385,12 @@ local function createMainUI()
                     Time = 3
                 })
                 
-                for i = 1, 150 do
+                for i = 1, 100 do
                     game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(
-                        "/w " .. SelectedPlayer .. " PING_FLOOD_" .. i .. " " .. string.rep("🚀", 20),
+                        "/w " .. SelectedPlayer .. " PING_FLOOD_" .. i .. " " .. string.rep("🚀", 10),
                         "All"
                     )
-                    wait(0.05)
+                    wait(0.1)
                 end
                 
                 OrionLib:MakeNotification({
@@ -368,64 +399,12 @@ local function createMainUI()
                     Image = "rbxassetid://7072717775",
                     Time = 3
                 })
-            else
-                OrionLib:MakeNotification({
-                    Name = "❌ Error",
-                    Content = "Please select a player first!",
-                    Image = "rbxassetid://7072717775",
-                    Time = 3
-                })
-            end
-        end
-    })
-
-    -- Bring All Players Feature
-    PlayerTab:AddButton({
-        Name = "🚀 Bring All Players To Me",
-        Callback = function()
-            local LocalPlayer = game.Players.LocalPlayer
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local broughtCount = 0
-                
-                for i, v in pairs(game:GetService("Players"):GetPlayers()) do
-                    if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
-                        v.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
-                        broughtCount = broughtCount + 1
-                    end
-                end
-                
-                OrionLib:MakeNotification({
-                    Name = "🚀 Players Brought",
-                    Content = "Successfully brought " .. broughtCount .. " players to you!",
-                    Image = "rbxassetid://7072717775",
-                    Time = 3
-                })
-            end
-        end
-    })
-
-    -- Teleport to Player Feature
-    PlayerTab:AddButton({
-        Name = "📍 Teleport To Player",
-        Callback = function()
-            if SelectedPlayer and SelectedPlayer ~= "None" then
-                local targetPlayer = game:GetService("Players"):FindFirstChild(SelectedPlayer)
-                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-                    
-                    OrionLib:MakeNotification({
-                        Name = "📍 Teleported",
-                        Content = "Teleported to " .. SelectedPlayer,
-                        Image = "rbxassetid://7072717775",
-                        Time = 3
-                    })
-                end
             end
         end
     })
 
     -- =============================================
-    -- TAB 3: SERVER CONTROL TAB (NEW)
+    -- TAB 3: SERVER CONTROL TAB
     -- =============================================
     local ServerTab = Window:MakeTab({
         Name = "Server Control",
@@ -437,7 +416,6 @@ local function createMainUI()
         Name = "💥 Server Actions"
     })
 
-    -- Crash Server Feature
     ServerTab:AddButton({
         Name = "💥 Crash Server (Heavy)",
         Callback = function()
@@ -448,135 +426,15 @@ local function createMainUI()
                 Time = 3
             })
             
-            -- Method 1: Mass part creation
-            for i = 1, 300 do
-                local part = Instance.new("Part")
-                part.Parent = workspace
-                part.Size = Vector3.new(100, 100, 100)
-                part.Position = Vector3.new(math.random(-500, 500), math.random(100, 1000), math.random(-500, 500))
-                part.Anchored = true
-                part.Material = Enum.Material.Neon
-                part.BrickColor = BrickColor.Random()
-            end
-            
-            -- Method 2: Body positions
+            -- Mass part creation
             for i = 1, 200 do
-                local body = Instance.new("BodyPosition")
-                body.Parent = workspace
-                body.Position = Vector3.new(0, 10000, 0)
-                body.MaxForce = Vector3.new(100000, 100000, 100000)
-            end
-            
-            -- Method 3: Script injection attempt
-            spawn(function()
-                while true do
-                    for i = 1, 50 do
-                        local s = Instance.new("Script")
-                        s.Parent = workspace
-                    end
-                    wait()
-                end
-            end)
-        end
-    })
-
-    -- Server Lag Feature
-    ServerTab:AddButton({
-        Name = "🌪️ Create Server Lag",
-        Callback = function()
-            OrionLib:MakeNotification({
-                Name = "🌪️ Generating Lag",
-                Content = "Creating server lag spikes...",
-                Image = "rbxassetid://7072717775",
-                Time = 3
-            })
-            
-            for i = 1, 100 do
                 local part = Instance.new("Part")
                 part.Parent = workspace
                 part.Size = Vector3.new(50, 50, 50)
-                part.Position = Vector3.new(math.random(-1000, 1000), math.random(500, 2000), math.random(-1000, 1000))
+                part.Position = Vector3.new(math.random(-500, 500), math.random(100, 500), math.random(-500, 500))
                 part.Anchored = true
-                
-                -- Add welds to increase processing
-                local weld = Instance.new("Weld")
-                weld.Parent = part
+                part.Material = Enum.Material.Neon
             end
-        end
-    })
-
-    -- Clear Workspace Feature
-    ServerTab:AddButton({
-        Name = "🗑️ Clear Workspace Parts",
-        Callback = function()
-            local count = 0
-            for i, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("Part") then
-                    v:Destroy()
-                    count = count + 1
-                end
-            end
-            
-            OrionLib:MakeNotification({
-                Name = "🗑️ Workspace Cleared",
-                Content = "Removed " .. count .. " parts from workspace",
-                Image = "rbxassetid://7072717775",
-                Time = 3
-            })
-        end
-    })
-
-    ServerTab:AddSection({
-        Name = "⚡ Server Utilities"
-    })
-
-    -- Freeze All Players
-    ServerTab:AddButton({
-        Name = "❄️ Freeze All Players",
-        Callback = function()
-            local frozenCount = 0
-            for i, v in pairs(game:GetService("Players"):GetPlayers()) do
-                if v ~= game.Players.LocalPlayer and v.Character then
-                    local humanoid = v.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid.WalkSpeed = 0
-                        humanoid.JumpPower = 0
-                        frozenCount = frozenCount + 1
-                    end
-                end
-            end
-            
-            OrionLib:MakeNotification({
-                Name = "❄️ Players Frozen",
-                Content = "Frozen " .. frozenCount .. " players",
-                Image = "rbxassetid://7072717775",
-                Time = 3
-            })
-        end
-    })
-
-    -- Unfreeze All Players
-    ServerTab:AddButton({
-        Name = "🔥 Unfreeze All Players",
-        Callback = function()
-            local unfrozenCount = 0
-            for i, v in pairs(game:GetService("Players"):GetPlayers()) do
-                if v.Character then
-                    local humanoid = v.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid.WalkSpeed = 16
-                        humanoid.JumpPower = 50
-                        unfrozenCount = unfrozenCount + 1
-                    end
-                end
-            end
-            
-            OrionLib:MakeNotification({
-                Name = "🔥 Players Unfrozen",
-                Content = "Unfrozen " .. unfrozenCount .. " players",
-                Image = "rbxassetid://7072717775",
-                Time = 3
-            })
         end
     })
 
@@ -616,16 +474,12 @@ local function createMainUI()
         end
     })
 
-    SettingsTab:AddSection({
-        Name = "📝 Information"
-    })
+    SettingsTab:AddParagraph("🎉 Anggazyy Hub", "✨ Version 3.1\n💜 Fixed Server-Side Bring Players\n🎯 Real Character Teleportation")
 
-    SettingsTab:AddParagraph("🎉 Anggazyy Hub", "✨ Version 3.0\n💜 Premium Control Hub\n🎯 Created by Anggazyy\n🌊 Added: Flood Ping, Server Crash, Player Control")
-
-    -- Initialize Orion dengan theme ungu
+    -- Initialize Orion
     OrionLib:Init()
 
-    -- Apply purple theme to existing elements
+    -- Apply purple theme
     for _, tab in next, OrionLib:GetWindow().Tabs do
         for _, section in next, tab.Sections do
             section.Color = Color3.fromRGB(147, 112, 219)
@@ -637,12 +491,10 @@ local function createMainUI()
         Window:Toggle()
     end
 
-    -- Button click event dengan animasi sederhana
+    -- Button click event
     OpenButton.MouseButton1Click:Connect(function()
         if Window then
             Window:Toggle()
-            
-            -- Simple scale animation
             spawn(function()
                 OpenButton.Size = UDim2.new(0, 45, 0, 45)
                 wait(0.1)
@@ -686,7 +538,7 @@ local function createMainUI()
     OpenButton.Visible = true
 end
 
--- Loading Screen Function yang lebih kecil
+-- Loading Screen Function
 local function showLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
     local Background = Instance.new("Frame")
@@ -705,15 +557,14 @@ local function showLoadingScreen()
     Background.Name = "Background"
     Background.Parent = LoadingGui
     Background.Size = UDim2.new(1, 0, 1, 0)
-    Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30) -- Background ungu gelap
+    Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
     Background.BackgroundTransparency = 0
     Background.ZIndex = 10
 
-    -- Ukuran lebih kecil untuk mobile
     LoadingFrame.Parent = Background
-    LoadingFrame.Size = UDim2.new(0, 280, 0, 100) -- Lebih kecil
+    LoadingFrame.Size = UDim2.new(0, 280, 0, 100)
     LoadingFrame.Position = UDim2.new(0.5, -140, 0.5, -50)
-    LoadingFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
+    LoadingFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     LoadingFrame.BorderSizePixel = 0
     LoadingFrame.ZIndex = 11
 
@@ -726,14 +577,14 @@ local function showLoadingScreen()
     LoadingLabel.BackgroundTransparency = 1
     LoadingLabel.Text = ""
     LoadingLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    LoadingLabel.TextSize = 16  -- Ukuran lebih kecil
+    LoadingLabel.TextSize = 16
     LoadingLabel.Font = Enum.Font.GothamBold
     LoadingLabel.ZIndex = 12
 
     LoadingBar.Parent = LoadingFrame
-    LoadingBar.Size = UDim2.new(0.8, 0, 0.15, 0) -- Lebih tipis
+    LoadingBar.Size = UDim2.new(0.8, 0, 0.15, 0)
     LoadingBar.Position = UDim2.new(0.1, 0, 0.75, 0)
-    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 35, 85) -- Ungu medium gelap
+    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 35, 85)
     LoadingBar.BorderSizePixel = 0
     LoadingBar.ZIndex = 12
 
@@ -742,33 +593,29 @@ local function showLoadingScreen()
 
     LoadingBarFill.Parent = LoadingBar
     LoadingBarFill.Size = UDim2.new(0, 0, 1, 0)
-    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(147, 112, 219) -- Ungu terang
+    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(147, 112, 219)
     LoadingBarFill.BorderSizePixel = 0
     LoadingBarFill.ZIndex = 13
 
     UICorner3.Parent = LoadingBarFill
     UICorner3.CornerRadius = UDim.new(0.5, 0)
 
-    -- Animated text function
     local function animateText(speed)
-        local fullText = "ANGGAZYY HUB V3"
+        local fullText = "ANGGAZYY HUB V3.1"
         local currentText = ""
         
         for i = 1, #fullText do
             currentText = string.sub(fullText, 1, i)
             LoadingLabel.Text = currentText
-            -- Update loading bar
             LoadingBarFill.Size = UDim2.new((i / #fullText), 0, 1, 0)
             wait(speed)
         end
     end
 
-    -- Show loading animation
     spawn(function()
         animateText(0.1)
         wait(0.3)
         
-        -- Fade out animation
         for i = 0, 1, 0.08 do
             Background.BackgroundTransparency = i
             LoadingFrame.BackgroundTransparency = i
@@ -780,15 +627,13 @@ local function showLoadingScreen()
         
         LoadingGui:Destroy()
         
-        -- Show notification dulu sebelum buka UI
         OrionLib:MakeNotification({
-            Name = "💜 Anggazyy Hub V3 Ready!",
-            Content = "New Features: Flood Ping, Server Crash, Player Control!",
+            Name = "💜 Fixed Bring Players!",
+            Content = "Now using server-side teleportation!",
             Image = "rbxassetid://7072717775",
             Time = 4
         })
         
-        -- Tunggu sebentar lalu buat UI
         wait(5.1)
         createMainUI()
     end)
@@ -810,5 +655,5 @@ spawn(function()
     end
 end)
 
--- Start loading screen when script executes
+-- Start loading screen
 showLoadingScreen()
