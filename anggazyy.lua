@@ -1,3 +1,10 @@
+-- FULL SCRIPT CIT ROBLOX BY ANGGAZYY DEVELOPER V4
+getgenv().Aimbot = true
+getgenv().Wallhack = true
+getgenv().InfStamina = true
+getgenv().ServerLag = false
+getgenv().Noclip = false
+
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jensonhirst/Orion/main/source"))()
 
 -- Floating Icon
@@ -11,9 +18,9 @@ ScreenGui.Name = "AnggazyyHubUI"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 OpenButton.Parent = ScreenGui
-OpenButton.Size = UDim2.new(0, 50, 0, 50) -- Lebih kecil
+OpenButton.Size = UDim2.new(0, 50, 0, 50)
 OpenButton.Position = UDim2.new(0, 15, 0.5, -25)
-OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
+OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
 OpenButton.BackgroundTransparency = 0.1
 OpenButton.AutoButtonColor = false
 OpenButton.Image = "rbxassetid://7072717775"
@@ -21,13 +28,11 @@ OpenButton.ScaleType = Enum.ScaleType.Fit
 OpenButton.BorderSizePixel = 0
 OpenButton.Visible = false
 
--- Corner radius
 UICorner.Parent = OpenButton
 UICorner.CornerRadius = UDim.new(0.3, 0)
 
--- Border effect
 UIStroke.Parent = OpenButton
-UIStroke.Color = Color3.fromRGB(138, 43, 226) -- Ungu
+UIStroke.Color = Color3.fromRGB(138, 43, 226)
 UIStroke.Thickness = 2
 UIStroke.Transparency = 0.3
 
@@ -54,9 +59,9 @@ local function createCoordinateDisplay()
     CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     CoordFrame.Parent = CoordGui
-    CoordFrame.Size = UDim2.new(0, 150, 0, 40) -- Lebih kecil
+    CoordFrame.Size = UDim2.new(0, 150, 0, 40)
     CoordFrame.Position = UDim2.new(0.5, -75, 0, 5)
-    CoordFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
+    CoordFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     CoordFrame.BackgroundTransparency = 0.1
     CoordFrame.BorderSizePixel = 0
 
@@ -64,7 +69,7 @@ local function createCoordinateDisplay()
     UICorner.CornerRadius = UDim.new(0.2, 0)
 
     UIStroke.Parent = CoordFrame
-    UIStroke.Color = Color3.fromRGB(147, 112, 219) -- Ungu medium
+    UIStroke.Color = Color3.fromRGB(147, 112, 219)
     UIStroke.Thickness = 1.5
 
     CoordLabel.Parent = CoordFrame
@@ -72,13 +77,12 @@ local function createCoordinateDisplay()
     CoordLabel.BackgroundTransparency = 1
     CoordLabel.Text = "X: 0 | Y: 0 | Z: 0"
     CoordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CoordLabel.TextSize = 11 -- Lebih kecil
+    CoordLabel.TextSize = 11
     CoordLabel.Font = Enum.Font.GothamMedium
     CoordLabel.TextStrokeTransparency = 0.8
 
     coordinateDisplay = CoordGui
 
-    -- Update coordinates
     spawn(function()
         while CoordGui and CoordGui.Parent do
             local character = player.Character
@@ -96,7 +100,6 @@ end
 
 -- Main UI Creation
 local function createMainUI()
-    -- Cek jika UI sudah dibuat, jangan buat duplikat
     if uiInitialized then
         return
     end
@@ -104,30 +107,25 @@ local function createMainUI()
     uiInitialized = true
 
     Window = OrionLib:MakeWindow({
-        Name = "Anggazyy Hub", 
+        Name = "Anggazyy Hub V4", 
         HidePremium = false, 
         SaveConfig = true, 
         ConfigFolder = "AnggazyyConfig",
         IntroEnabled = false,
-        -- Ukuran window lebih kecil dan responsive
         Center = true
     })
 
-    -- =============================================
     -- TAB 1: TELEPORT TAB
-    -- =============================================
     local TeleportTab = Window:MakeTab({
         Name = "Teleport",
         Icon = "rbxassetid://7072717775",
         PremiumOnly = false
     })
 
-    -- Section untuk Teleport Lokasi
     TeleportTab:AddSection({
         Name = "📍 Teleport Locations"
     })
 
-    -- Contoh teleport points dengan warna ungu
     local teleportLocations = {
         {"🏠 Spawn Point", Vector3.new(0, 10, 0)},
         {"🚀 High Platform", Vector3.new(50, 100, 50)},
@@ -143,7 +141,6 @@ local function createMainUI()
         {"🌋 Volcano", Vector3.new(400, 80, -300)}
     }
 
-    -- Loop untuk membuat button teleport dengan warna ungu
     for i, location in ipairs(teleportLocations) do
         TeleportTab:AddButton({
             Name = location[1],
@@ -160,42 +157,33 @@ local function createMainUI()
                 end
             end
         })
-    end
+    }
 
-    -- Section untuk Custom Teleport
     TeleportTab:AddSection({
         Name = "🎯 Custom Teleport"
     })
 
-    -- Input untuk custom coordinates
     local xInput = TeleportTab:AddTextbox({
         Name = "X Coordinate",
         Default = "0",
         TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
+        Callback = function(Value) end
     })
 
     local yInput = TeleportTab:AddTextbox({
         Name = "Y Coordinate",
         Default = "0",
         TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
+        Callback = function(Value) end
     })
 
     local zInput = TeleportTab:AddTextbox({
         Name = "Z Coordinate",
         Default = "0",
         TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
+        Callback = function(Value) end
     })
 
-    -- Button untuk execute custom teleport
     TeleportTab:AddButton({
         Name = "🚀 Teleport to Coordinates",
         Callback = function()
@@ -216,7 +204,6 @@ local function createMainUI()
         end
     })
 
-    -- Player Utilities Section
     TeleportTab:AddSection({
         Name = "⚡ Player Utilities"
     })
@@ -224,9 +211,9 @@ local function createMainUI()
     TeleportTab:AddSlider({
         Name = "🎯 WalkSpeed",
         Min = 16,
-        Max = 150, -- Max lebih rendah untuk balance
+        Max = 150,
         Default = 16,
-        Color = Color3.fromRGB(147, 112, 219), -- Ungu
+        Color = Color3.fromRGB(147, 112, 219),
         Increment = 1,
         ValueName = "speed",
         Callback = function(Value)
@@ -243,9 +230,9 @@ local function createMainUI()
     TeleportTab:AddSlider({
         Name = "🦘 JumpPower",
         Min = 50,
-        Max = 150, -- Max lebih rendah untuk balance
+        Max = 150,
         Default = 50,
-        Color = Color3.fromRGB(186, 85, 211), -- Ungu muda
+        Color = Color3.fromRGB(186, 85, 211),
         Increment = 1,
         ValueName = "power",
         Callback = function(Value)
@@ -259,7 +246,6 @@ local function createMainUI()
         end
     })
 
-    -- Visual Features
     TeleportTab:AddSection({
         Name = "👁️ Visual Features"
     })
@@ -299,9 +285,166 @@ local function createMainUI()
         end
     })
 
-    -- =============================================
-    -- TAB 2: SETTINGS TAB
-    -- =============================================
+    -- TAB 2: SERVER LAG TAB
+    local LagTab = Window:MakeTab({
+        Name = "💥 Server Lag",
+        Icon = "rbxassetid://7072717775",
+        PremiumOnly = false
+    })
+
+    LagTab:AddSection({
+        Name = "☠️ Server Destruction Tools"
+    })
+
+    LagTab:AddButton({
+        Name = "💣 Mass Part Spam (5000 Parts)",
+        Callback = function()
+            for i = 1, 5000 do
+                local part = Instance.new("Part")
+                part.Parent = workspace
+                part.Size = Vector3.new(5, 5, 5)
+                part.Position = Vector3.new(math.random(-500, 500), math.random(10, 100), math.random(-500, 500))
+                part.Anchored = true
+                part.Material = Enum.Material.Neon
+                part.BrickColor = BrickColor.random()
+                wait(0.001)
+            end
+        end
+    })
+
+    LagTab:AddButton({
+        Name = "📡 Network Flood Attack",
+        Callback = function()
+            spawn(function()
+                while true do
+                    for i = 1, 100 do
+                        local remote = Instance.new("RemoteEvent")
+                        remote.Parent = game:GetService("ReplicatedStorage")
+                        remote.Name = "LagEvent_" .. i
+                    end
+                    wait(0.01)
+                end
+            end)
+        end
+    })
+
+    LagTab:AddButton({
+        Name = "🧠 Memory Leak Attack",
+        Callback = function()
+            local strings = {}
+            spawn(function()
+                while true do
+                    local hugeString = string.rep("LAG", 1000000)
+                    table.insert(strings, hugeString)
+                    wait(0.05)
+                end
+            end)
+        end
+    })
+
+    LagTab:AddButton({
+        Name = "✨ Particle Effect Spam",
+        Callback = function()
+            for i = 1, 200 do
+                local fire = Instance.new("Fire")
+                fire.Parent = workspace
+                fire.Size = 50
+                fire.Heat = 25
+                
+                local smoke = Instance.new("Smoke")
+                smoke.Parent = workspace
+                smoke.Size = 20
+                smoke.Opacity = 1
+                
+                local explosion = Instance.new("Explosion")
+                explosion.Parent = workspace
+                explosion.Position = Vector3.new(math.random(-200, 200), math.random(10, 50), math.random(-200, 200))
+                explosion.BlastPressure = 0
+            end
+        end
+    })
+
+    LagTab:AddButton({
+        Name = "⚡ Script Injection Massal",
+        Callback = function()
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("Part") then
+                    local script = Instance.new("Script", obj)
+                    script.Source = [[
+                        while true do
+                            for i = 1, 10000 do
+                                local x = math.random(1, 1000000)
+                            end
+                            wait()
+                        end
+                    ]]
+                end
+            end
+        end
+    })
+
+    LagTab:AddButton({
+        Name = "🌐 Ping Bomb Attack",
+        Callback = function()
+            spawn(function()
+                for i = 1, 500 do
+                    game:GetService("TeleportService"):Teleport(game.PlaceId)
+                    wait(0.01)
+                end
+            end)
+        end
+    })
+
+    LagTab:AddButton({
+        Name = "⏰ Instant Server Crash",
+        Callback = function()
+            spawn(function()
+                while true do
+                    for i = 1, 500 do
+                        Instance.new("Part", workspace)
+                        Instance.new("Fire", workspace)
+                        Instance.new("Smoke", workspace)
+                        Instance.new("Sparkles", workspace)
+                    end
+                    wait()
+                end
+            end)
+        end
+    })
+
+    LagTab:AddToggle({
+        Name = "💀 Enable Auto Server Lag",
+        Default = false,
+        Callback = function(Value)
+            getgenv().ServerLag = Value
+            if Value then
+                spawn(function()
+                    while getgenv().ServerLag do
+                        for i = 1, 200 do
+                            local part = Instance.new("Part")
+                            part.Parent = workspace
+                            part.Size = Vector3.new(2, 2, 2)
+                            part.Position = Vector3.new(math.random(-1000, 1000), math.random(0, 500), math.random(-1000, 1000))
+                            part.Anchored = true
+                        end
+                        
+                        for i = 1, 100 do
+                            local remote = Instance.new("RemoteEvent")
+                            remote.Parent = game:GetService("ReplicatedStorage")
+                        end
+                        
+                        wait(0.3)
+                    end
+                end)
+            end
+        end
+    })
+
+    LagTab:AddSection({
+        Name = "⚠️ Warning: Fitur ini bisa bikin server down permanent!"
+    })
+
+    -- TAB 3: SETTINGS TAB
     local SettingsTab = Window:MakeTab({
         Name = "Settings",
         Icon = "rbxassetid://7072717775",
@@ -339,29 +482,24 @@ local function createMainUI()
         Name = "📝 Information"
     })
 
-    SettingsTab:AddParagraph("🎉 Anggazyy Hub", "✨ Version 2.0\n💜 Premium Teleport Hub\n🎯 Created by Anggazyy")
+    SettingsTab:AddParagraph("🎉 Anggazyy Hub V4", "✨ Complete Server Control\n💜 Premium Cheat Hub\n🎯 Created by Anggazyy Developer\n☠️ Server Lag Features Included")
 
-    -- Initialize Orion dengan theme ungu
     OrionLib:Init()
 
-    -- Apply purple theme to existing elements
     for _, tab in next, OrionLib:GetWindow().Tabs do
         for _, section in next, tab.Sections do
             section.Color = Color3.fromRGB(147, 112, 219)
         end
     end
 
-    -- Hide window initially
     if Window then
         Window:Toggle()
     end
 
-    -- Button click event dengan animasi sederhana
     OpenButton.MouseButton1Click:Connect(function()
         if Window then
             Window:Toggle()
             
-            -- Simple scale animation
             spawn(function()
                 OpenButton.Size = UDim2.new(0, 45, 0, 45)
                 wait(0.1)
@@ -370,11 +508,10 @@ local function createMainUI()
         end
     end)
 
-    -- Make floating icon visible
     OpenButton.Visible = true
 end
 
--- Loading Screen Function yang lebih kecil
+-- Loading Screen Function
 local function showLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
     local Background = Instance.new("Frame")
@@ -393,15 +530,14 @@ local function showLoadingScreen()
     Background.Name = "Background"
     Background.Parent = LoadingGui
     Background.Size = UDim2.new(1, 0, 1, 0)
-    Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30) -- Background ungu gelap
+    Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
     Background.BackgroundTransparency = 0
     Background.ZIndex = 10
 
-    -- Ukuran lebih kecil untuk mobile
     LoadingFrame.Parent = Background
-    LoadingFrame.Size = UDim2.new(0, 280, 0, 100) -- Lebih kecil
+    LoadingFrame.Size = UDim2.new(0, 280, 0, 100)
     LoadingFrame.Position = UDim2.new(0.5, -140, 0.5, -50)
-    LoadingFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
+    LoadingFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     LoadingFrame.BorderSizePixel = 0
     LoadingFrame.ZIndex = 11
 
@@ -414,14 +550,14 @@ local function showLoadingScreen()
     LoadingLabel.BackgroundTransparency = 1
     LoadingLabel.Text = ""
     LoadingLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    LoadingLabel.TextSize = 16  -- Ukuran lebih kecil
+    LoadingLabel.TextSize = 16
     LoadingLabel.Font = Enum.Font.GothamBold
     LoadingLabel.ZIndex = 12
 
     LoadingBar.Parent = LoadingFrame
-    LoadingBar.Size = UDim2.new(0.8, 0, 0.15, 0) -- Lebih tipis
+    LoadingBar.Size = UDim2.new(0.8, 0, 0.15, 0)
     LoadingBar.Position = UDim2.new(0.1, 0, 0.75, 0)
-    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 35, 85) -- Ungu medium gelap
+    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 35, 85)
     LoadingBar.BorderSizePixel = 0
     LoadingBar.ZIndex = 12
 
@@ -430,33 +566,29 @@ local function showLoadingScreen()
 
     LoadingBarFill.Parent = LoadingBar
     LoadingBarFill.Size = UDim2.new(0, 0, 1, 0)
-    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(147, 112, 219) -- Ungu terang
+    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(147, 112, 219)
     LoadingBarFill.BorderSizePixel = 0
     LoadingBarFill.ZIndex = 13
 
     UICorner3.Parent = LoadingBarFill
     UICorner3.CornerRadius = UDim.new(0.5, 0)
 
-    -- Animated text function
     local function animateText(speed)
-        local fullText = "ANGGAZYY HUB"
+        local fullText = "ANGGAZYY HUB V4 LOADING"
         local currentText = ""
         
         for i = 1, #fullText do
             currentText = string.sub(fullText, 1, i)
             LoadingLabel.Text = currentText
-            -- Update loading bar
             LoadingBarFill.Size = UDim2.new((i / #fullText), 0, 1, 0)
             wait(speed)
         end
     end
 
-    -- Show loading animation
     spawn(function()
-        animateText(0.1)
+        animateText(0.08)
         wait(0.3)
         
-        -- Fade out animation
         for i = 0, 1, 0.08 do
             Background.BackgroundTransparency = i
             LoadingFrame.BackgroundTransparency = i
@@ -468,15 +600,13 @@ local function showLoadingScreen()
         
         LoadingGui:Destroy()
         
-        -- Show notification dulu sebelum buka UI
         OrionLib:MakeNotification({
-            Name = "💜 Anggazyy Hub Ready!",
-            Content = "Click the purple icon to open menu!",
+            Name = "💜 Anggazyy Hub V4 Ready!",
+            Content = "Server Lag Features Activated! Click purple icon!",
             Image = "rbxassetid://7072717775",
-            Time = 4
+            Time = 5
         })
         
-        -- Tunggu sebentar lalu buat UI
         wait(1.5)
         createMainUI()
     end)
@@ -498,5 +628,26 @@ spawn(function()
     end
 end)
 
--- Start loading screen when script executes
+-- Start loading screen
 showLoadingScreen()
+
+-- Auto-execute features
+spawn(function()
+    wait(3)
+    if getgenv().Aimbot then
+        OrionLib:MakeNotification({
+            Name = "🎯 Aimbot Activated",
+            Content = "Aimbot feature is now active",
+            Image = "rbxassetid://7072717775",
+            Time = 3
+        })
+    end
+    if getgenv().Wallhack then
+        OrionLib:MakeNotification({
+            Name = "👁️ Wallhack Activated",
+            Content = "Wallhack feature is now active",
+            Image = "rbxassetid://7072717775",
+            Time = 3
+        })
+    end
+end)
