@@ -11,9 +11,9 @@ ScreenGui.Name = "AnggazyyHubUI"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 OpenButton.Parent = ScreenGui
-OpenButton.Size = UDim2.new(0, 60, 0, 60)
-OpenButton.Position = UDim2.new(0, 20, 0.5, -30)
-OpenButton.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+OpenButton.Size = UDim2.new(0, 50, 0, 50) -- Lebih kecil
+OpenButton.Position = UDim2.new(0, 15, 0.5, -25)
+OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
 OpenButton.BackgroundTransparency = 0.1
 OpenButton.AutoButtonColor = false
 OpenButton.Image = "rbxassetid://7072717775"
@@ -23,11 +23,11 @@ OpenButton.Visible = false
 
 -- Corner radius
 UICorner.Parent = OpenButton
-UICorner.CornerRadius = UDim.new(0.2, 0)
+UICorner.CornerRadius = UDim.new(0.3, 0)
 
 -- Border effect
 UIStroke.Parent = OpenButton
-UIStroke.Color = Color3.fromRGB(100, 100, 255)
+UIStroke.Color = Color3.fromRGB(138, 43, 226) -- Ungu
 UIStroke.Thickness = 2
 UIStroke.Transparency = 0.3
 
@@ -54,26 +54,26 @@ local function createCoordinateDisplay()
     CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     CoordFrame.Parent = CoordGui
-    CoordFrame.Size = UDim2.new(0, 180, 0, 50)
-    CoordFrame.Position = UDim2.new(0.5, -90, 0, 10)
-    CoordFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    CoordFrame.Size = UDim2.new(0, 150, 0, 40) -- Lebih kecil
+    CoordFrame.Position = UDim2.new(0.5, -75, 0, 5)
+    CoordFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
     CoordFrame.BackgroundTransparency = 0.1
     CoordFrame.BorderSizePixel = 0
 
     UICorner.Parent = CoordFrame
-    UICorner.CornerRadius = UDim.new(0.1, 0)
+    UICorner.CornerRadius = UDim.new(0.2, 0)
 
     UIStroke.Parent = CoordFrame
-    UIStroke.Color = Color3.fromRGB(100, 100, 255)
-    UIStroke.Thickness = 2
+    UIStroke.Color = Color3.fromRGB(147, 112, 219) -- Ungu medium
+    UIStroke.Thickness = 1.5
 
     CoordLabel.Parent = CoordFrame
     CoordLabel.Size = UDim2.new(1, 0, 1, 0)
     CoordLabel.BackgroundTransparency = 1
     CoordLabel.Text = "X: 0 | Y: 0 | Z: 0"
     CoordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CoordLabel.TextSize = 12
-    CoordLabel.Font = Enum.Font.GothamBold
+    CoordLabel.TextSize = 11 -- Lebih kecil
+    CoordLabel.Font = Enum.Font.GothamMedium
     CoordLabel.TextStrokeTransparency = 0.8
 
     coordinateDisplay = CoordGui
@@ -108,174 +108,42 @@ local function createMainUI()
         HidePremium = false, 
         SaveConfig = true, 
         ConfigFolder = "AnggazyyConfig",
-        IntroEnabled = false
+        IntroEnabled = false,
+        -- Ukuran window lebih kecil dan responsive
+        Center = true
     })
 
     -- =============================================
-    -- TAB 1: MAIN TAB
-    -- =============================================
-    local MainTab = Window:MakeTab({
-        Name = "Main",  -- Ini yang muncul di menu kiri
-        Icon = "rbxassetid://7072717775",
-        PremiumOnly = false
-    })
-
-    -- Player Section
-    MainTab:AddSection({
-        Name = "Player Features"
-    })
-
-    MainTab:AddButton({
-        Name = "Fly Script",
-        Callback = function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGui/main/FlyGui.txt"))()
-            OrionLib:MakeNotification({
-                Name = "Fly Activated!",
-                Content = "Press E to fly",
-                Image = "rbxassetid://7072717775",
-                Time = 3
-            })
-        end
-    })
-
-    MainTab:AddSlider({
-        Name = "WalkSpeed",
-        Min = 16,
-        Max = 200,
-        Default = 16,
-        Color = Color3.fromRGB(100, 100, 255),
-        Increment = 1,
-        ValueName = "speed",
-        Callback = function(Value)
-            local character = game.Players.LocalPlayer.Character
-            if character then
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.WalkSpeed = Value
-                end
-            end
-        end
-    })
-
-    MainTab:AddSlider({
-        Name = "JumpPower",
-        Min = 50,
-        Max = 200,
-        Default = 50,
-        Color = Color3.fromRGB(100, 255, 100),
-        Increment = 1,
-        ValueName = "power",
-        Callback = function(Value)
-            local character = game.Players.LocalPlayer.Character
-            if character then
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.JumpPower = Value
-                end
-            end
-        end
-    })
-
-    -- Game Section
-    MainTab:AddSection({
-        Name = "Game Features"
-    })
-
-    MainTab:AddButton({
-        Name = "Infinite Yield",
-        Callback = function()
-            loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
-            OrionLib:MakeNotification({
-                Name = "Infinite Yield Loaded!",
-                Content = "FE Admin Commands activated",
-                Image = "rbxassetid://7072717775",
-                Time = 3
-            })
-        end
-    })
-
-    local noclipToggle = MainTab:AddToggle({
-        Name = "Noclip",
-        Default = false,
-        Callback = function(Value)
-            getgenv().Noclip = Value
-            OrionLib:MakeNotification({
-                Name = "Noclip " .. (Value and "Enabled" or "Disabled"),
-                Content = "Noclip feature " .. (Value and "activated" or "deactivated"),
-                Image = "rbxassetid://7072717775",
-                Time = 2
-            })
-        end
-    })
-
-    -- Visual Section
-    MainTab:AddSection({
-        Name = "Visual Features"
-    })
-
-    local espToggle = MainTab:AddToggle({
-        Name = "Player ESP",
-        Default = false,
-        Callback = function(Value)
-            OrionLib:MakeNotification({
-                Name = "ESP " .. (Value and "Enabled" or "Disabled"),
-                Content = "Player ESP " .. (Value and "activated" or "deactivated"),
-                Image = "rbxassetid://7072717775",
-                Time = 2
-            })
-        end
-    })
-
-    local coordinateToggle = MainTab:AddToggle({
-        Name = "Show Coordinates",
-        Default = false,
-        Callback = function(Value)
-            if Value then
-                createCoordinateDisplay()
-                OrionLib:MakeNotification({
-                    Name = "Coordinates Enabled",
-                    Content = "Player coordinates display activated",
-                    Image = "rbxassetid://7072717775",
-                    Time = 2
-                })
-            else
-                if coordinateDisplay then
-                    coordinateDisplay:Destroy()
-                    coordinateDisplay = nil
-                end
-            end
-        end
-    })
-
-    -- =============================================
-    -- TAB 2: TELEPORT TAB
+    -- TAB 1: TELEPORT TAB
     -- =============================================
     local TeleportTab = Window:MakeTab({
-        Name = "Teleport",  -- Menu Teleport di sebelah Main
+        Name = "Teleport",
         Icon = "rbxassetid://7072717775",
         PremiumOnly = false
     })
 
     -- Section untuk Teleport Lokasi
     TeleportTab:AddSection({
-        Name = "Teleport Locations"
+        Name = "📍 Teleport Locations"
     })
 
-    -- Contoh teleport points - bisa ditambah sesuai kebutuhan
+    -- Contoh teleport points dengan warna ungu
     local teleportLocations = {
-        {"Spawn Point", Vector3.new(0, 10, 0)},
-        {"High Platform", Vector3.new(50, 100, 50)},
-        {"Secret Area", Vector3.new(-100, 25, -100)},
-        {"Mountain Top", Vector3.new(200, 150, 200)},
-        {"Underground", Vector3.new(0, -50, 0)},
-        {"Forest Area", Vector3.new(-150, 20, 150)},
-        {"Beach Side", Vector3.new(300, 15, -200)},
-        {"City Center", Vector3.new(100, 30, 100)},
-        {"Sky Island", Vector3.new(0, 500, 0)},
-        {"Cave Entrance", Vector3.new(-200, 10, -50)}
+        {"🏠 Spawn Point", Vector3.new(0, 10, 0)},
+        {"🚀 High Platform", Vector3.new(50, 100, 50)},
+        {"🔒 Secret Area", Vector3.new(-100, 25, -100)},
+        {"⛰️ Mountain Top", Vector3.new(200, 150, 200)},
+        {"🕳️ Underground", Vector3.new(0, -50, 0)},
+        {"🌲 Forest Area", Vector3.new(-150, 20, 150)},
+        {"🏖️ Beach Side", Vector3.new(300, 15, -200)},
+        {"🏙️ City Center", Vector3.new(100, 30, 100)},
+        {"☁️ Sky Island", Vector3.new(0, 500, 0)},
+        {"🕸️ Cave Entrance", Vector3.new(-200, 10, -50)},
+        {"🌟 Crystal Cave", Vector3.new(-300, -20, 100)},
+        {"🌋 Volcano", Vector3.new(400, 80, -300)}
     }
 
-    -- Loop untuk membuat button teleport
+    -- Loop untuk membuat button teleport dengan warna ungu
     for i, location in ipairs(teleportLocations) do
         TeleportTab:AddButton({
             Name = location[1],
@@ -284,7 +152,7 @@ local function createMainUI()
                 if character and character:FindFirstChild("HumanoidRootPart") then
                     character.HumanoidRootPart.CFrame = CFrame.new(location[2])
                     OrionLib:MakeNotification({
-                        Name = "Teleported!",
+                        Name = "✨ Teleported!",
                         Content = "Teleported to " .. location[1],
                         Image = "rbxassetid://7072717775",
                         Time = 3
@@ -296,7 +164,7 @@ local function createMainUI()
 
     -- Section untuk Custom Teleport
     TeleportTab:AddSection({
-        Name = "Custom Teleport"
+        Name = "🎯 Custom Teleport"
     })
 
     -- Input untuk custom coordinates
@@ -329,7 +197,7 @@ local function createMainUI()
 
     -- Button untuk execute custom teleport
     TeleportTab:AddButton({
-        Name = "Teleport to Coordinates",
+        Name = "🚀 Teleport to Coordinates",
         Callback = function()
             local x = tonumber(xInput.Value) or 0
             local y = tonumber(yInput.Value) or 0
@@ -339,7 +207,7 @@ local function createMainUI()
             if character and character:FindFirstChild("HumanoidRootPart") then
                 character.HumanoidRootPart.CFrame = CFrame.new(x, y, z)
                 OrionLib:MakeNotification({
-                    Name = "Custom Teleport",
+                    Name = "🎯 Custom Teleport",
                     Content = string.format("Teleported to X: %d, Y: %d, Z: %d", x, y, z),
                     Image = "rbxassetid://7072717775",
                     Time = 3
@@ -348,17 +216,104 @@ local function createMainUI()
         end
     })
 
+    -- Player Utilities Section
+    TeleportTab:AddSection({
+        Name = "⚡ Player Utilities"
+    })
+
+    TeleportTab:AddSlider({
+        Name = "🎯 WalkSpeed",
+        Min = 16,
+        Max = 150, -- Max lebih rendah untuk balance
+        Default = 16,
+        Color = Color3.fromRGB(147, 112, 219), -- Ungu
+        Increment = 1,
+        ValueName = "speed",
+        Callback = function(Value)
+            local character = game.Players.LocalPlayer.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.WalkSpeed = Value
+                end
+            end
+        end
+    })
+
+    TeleportTab:AddSlider({
+        Name = "🦘 JumpPower",
+        Min = 50,
+        Max = 150, -- Max lebih rendah untuk balance
+        Default = 50,
+        Color = Color3.fromRGB(186, 85, 211), -- Ungu muda
+        Increment = 1,
+        ValueName = "power",
+        Callback = function(Value)
+            local character = game.Players.LocalPlayer.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.JumpPower = Value
+                end
+            end
+        end
+    })
+
+    -- Visual Features
+    TeleportTab:AddSection({
+        Name = "👁️ Visual Features"
+    })
+
+    local noclipToggle = TeleportTab:AddToggle({
+        Name = "🚶 Noclip",
+        Default = false,
+        Callback = function(Value)
+            getgenv().Noclip = Value
+            OrionLib:MakeNotification({
+                Name = Value and "🚶 Noclip Enabled" or "🚶 Noclip Disabled",
+                Content = "Noclip feature " .. (Value and "activated" or "deactivated"),
+                Image = "rbxassetid://7072717775",
+                Time = 2
+            })
+        end
+    })
+
+    local coordinateToggle = TeleportTab:AddToggle({
+        Name = "📍 Show Coordinates",
+        Default = false,
+        Callback = function(Value)
+            if Value then
+                createCoordinateDisplay()
+                OrionLib:MakeNotification({
+                    Name = "📍 Coordinates Enabled",
+                    Content = "Player coordinates display activated",
+                    Image = "rbxassetid://7072717775",
+                    Time = 2
+                })
+            else
+                if coordinateDisplay then
+                    coordinateDisplay:Destroy()
+                    coordinateDisplay = nil
+                end
+            end
+        end
+    })
+
     -- =============================================
-    -- TAB 3: SETTINGS TAB
+    -- TAB 2: SETTINGS TAB
     -- =============================================
     local SettingsTab = Window:MakeTab({
-        Name = "Settings",  -- Menu Settings di sebelah Teleport
+        Name = "Settings",
         Icon = "rbxassetid://7072717775",
         PremiumOnly = false
     })
 
+    SettingsTab:AddSection({
+        Name = "🔧 UI Settings"
+    })
+
     SettingsTab:AddButton({
-        Name = "Destroy UI",
+        Name = "🗑️ Destroy UI",
         Callback = function()
             OrionLib:Destroy()
             ScreenGui:Destroy()
@@ -370,7 +325,7 @@ local function createMainUI()
     })
 
     SettingsTab:AddBind({
-        Name = "Toggle UI",
+        Name = "🎮 Toggle UI Keybind",
         Default = Enum.KeyCode.RightShift,
         Hold = false,
         Callback = function()
@@ -380,26 +335,37 @@ local function createMainUI()
         end
     })
 
-    SettingsTab:AddParagraph("Credits", "✨ Anggazyy Hub v2.0\n🌟 Premium Roblox Script Hub\n💫 Created by Anggazyy")
+    SettingsTab:AddSection({
+        Name = "📝 Information"
+    })
 
-    -- Initialize Orion
+    SettingsTab:AddParagraph("🎉 Anggazyy Hub", "✨ Version 2.0\n💜 Premium Teleport Hub\n🎯 Created by Anggazyy")
+
+    -- Initialize Orion dengan theme ungu
     OrionLib:Init()
+
+    -- Apply purple theme to existing elements
+    for _, tab in next, OrionLib:GetWindow().Tabs do
+        for _, section in next, tab.Sections do
+            section.Color = Color3.fromRGB(147, 112, 219)
+        end
+    end
 
     -- Hide window initially
     if Window then
         Window:Toggle()
     end
 
-    -- Button click event
+    -- Button click event dengan animasi sederhana
     OpenButton.MouseButton1Click:Connect(function()
         if Window then
             Window:Toggle()
             
             -- Simple scale animation
             spawn(function()
-                OpenButton.Size = UDim2.new(0, 55, 0, 55)
+                OpenButton.Size = UDim2.new(0, 45, 0, 45)
                 wait(0.1)
-                OpenButton.Size = UDim2.new(0, 60, 0, 60)
+                OpenButton.Size = UDim2.new(0, 50, 0, 50)
             end)
         end
     end)
@@ -408,7 +374,7 @@ local function createMainUI()
     OpenButton.Visible = true
 end
 
--- Loading Screen Function
+-- Loading Screen Function yang lebih kecil
 local function showLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
     local Background = Instance.new("Frame")
@@ -427,20 +393,20 @@ local function showLoadingScreen()
     Background.Name = "Background"
     Background.Parent = LoadingGui
     Background.Size = UDim2.new(1, 0, 1, 0)
-    Background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30) -- Background ungu gelap
     Background.BackgroundTransparency = 0
     Background.ZIndex = 10
 
     -- Ukuran lebih kecil untuk mobile
     LoadingFrame.Parent = Background
-    LoadingFrame.Size = UDim2.new(0, 300, 0, 120)
-    LoadingFrame.Position = UDim2.new(0.5, -150, 0.5, -60)
-    LoadingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    LoadingFrame.Size = UDim2.new(0, 280, 0, 100) -- Lebih kecil
+    LoadingFrame.Position = UDim2.new(0.5, -140, 0.5, -50)
+    LoadingFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
     LoadingFrame.BorderSizePixel = 0
     LoadingFrame.ZIndex = 11
 
     UICorner1.Parent = LoadingFrame
-    UICorner1.CornerRadius = UDim.new(0.1, 0)
+    UICorner1.CornerRadius = UDim.new(0.15, 0)
 
     LoadingLabel.Parent = LoadingFrame
     LoadingLabel.Size = UDim2.new(1, 0, 0.6, 0)
@@ -448,14 +414,14 @@ local function showLoadingScreen()
     LoadingLabel.BackgroundTransparency = 1
     LoadingLabel.Text = ""
     LoadingLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    LoadingLabel.TextSize = 18  -- Ukuran lebih kecil
+    LoadingLabel.TextSize = 16  -- Ukuran lebih kecil
     LoadingLabel.Font = Enum.Font.GothamBold
     LoadingLabel.ZIndex = 12
 
     LoadingBar.Parent = LoadingFrame
-    LoadingBar.Size = UDim2.new(0.8, 0, 0.1, 0)
-    LoadingBar.Position = UDim2.new(0.1, 0, 0.8, 0)
-    LoadingBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+    LoadingBar.Size = UDim2.new(0.8, 0, 0.15, 0) -- Lebih tipis
+    LoadingBar.Position = UDim2.new(0.1, 0, 0.75, 0)
+    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 35, 85) -- Ungu medium gelap
     LoadingBar.BorderSizePixel = 0
     LoadingBar.ZIndex = 12
 
@@ -464,7 +430,7 @@ local function showLoadingScreen()
 
     LoadingBarFill.Parent = LoadingBar
     LoadingBarFill.Size = UDim2.new(0, 0, 1, 0)
-    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(147, 112, 219) -- Ungu terang
     LoadingBarFill.BorderSizePixel = 0
     LoadingBarFill.ZIndex = 13
 
@@ -473,7 +439,7 @@ local function showLoadingScreen()
 
     -- Animated text function
     local function animateText(speed)
-        local fullText = "A N G G A Z Y Y  H U B"
+        local fullText = "ANGGAZYY HUB"
         local currentText = ""
         
         for i = 1, #fullText do
@@ -487,11 +453,11 @@ local function showLoadingScreen()
 
     -- Show loading animation
     spawn(function()
-        animateText(0.08)
-        wait(0.5)
+        animateText(0.1)
+        wait(0.3)
         
         -- Fade out animation
-        for i = 0, 1, 0.05 do
+        for i = 0, 1, 0.08 do
             Background.BackgroundTransparency = i
             LoadingFrame.BackgroundTransparency = i
             LoadingLabel.TextTransparency = i
@@ -504,14 +470,14 @@ local function showLoadingScreen()
         
         -- Show notification dulu sebelum buka UI
         OrionLib:MakeNotification({
-            Name = "Anggazyy Hub Loaded!",
-            Content = "UI is ready! Click the floating icon to open.",
+            Name = "💜 Anggazyy Hub Ready!",
+            Content = "Click the purple icon to open menu!",
             Image = "rbxassetid://7072717775",
-            Time = 5
+            Time = 4
         })
         
         -- Tunggu sebentar lalu buat UI
-        wait(1)
+        wait(1.5)
         createMainUI()
     end)
 end
