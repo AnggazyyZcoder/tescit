@@ -1,5 +1,3 @@
-
-
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jensonhirst/Orion/main/source"))()
 
 -- Floating Icon
@@ -302,7 +300,288 @@ local function createMainUI()
     })
 
     -- =============================================
-    -- TAB 2: SETTINGS TAB
+    -- TAB 2: PLAYER CONTROL TAB (NEW)
+    -- =============================================
+    local PlayerTab = Window:MakeTab({
+        Name = "Player Control",
+        Icon = "rbxassetid://7072717775",
+        PremiumOnly = false
+    })
+
+    PlayerTab:AddSection({
+        Name = "🎯 Player Selection"
+    })
+
+    local SelectedPlayer = "None"
+    local PlayerDropdown = PlayerTab:AddDropdown({
+        Name = "Select Player",
+        Default = "None",
+        Options = {"None"},
+        Callback = function(Value)
+            SelectedPlayer = Value
+        end
+    })
+
+    -- Update player list function
+    local function UpdatePlayerList()
+        local players = {"None"}
+        for i, v in pairs(game:GetService("Players"):GetPlayers()) do
+            if v ~= game.Players.LocalPlayer then
+                table.insert(players, v.Name)
+            end
+        end
+        PlayerDropdown:Refresh(players, true)
+    end
+
+    -- Initial update and connect events
+    UpdatePlayerList()
+    game:GetService("Players").PlayerAdded:Connect(UpdatePlayerList)
+    game:GetService("Players").PlayerRemoving:Connect(UpdatePlayerList)
+
+    PlayerTab:AddSection({
+        Name = "🌊 Flood & Control"
+    })
+
+    -- Flood Ping Player Feature
+    PlayerTab:AddButton({
+        Name = "🌊 Flood Ping Player",
+        Callback = function()
+            if SelectedPlayer and SelectedPlayer ~= "None" then
+                OrionLib:MakeNotification({
+                    Name = "🌊 Flood Ping Started",
+                    Content = "Flooding " .. SelectedPlayer .. " with pings...",
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+                
+                for i = 1, 150 do
+                    game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(
+                        "/w " .. SelectedPlayer .. " PING_FLOOD_" .. i .. " " .. string.rep("🚀", 20),
+                        "All"
+                    )
+                    wait(0.05)
+                end
+                
+                OrionLib:MakeNotification({
+                    Name = "🌊 Flood Ping Complete",
+                    Content = "Finished flooding " .. SelectedPlayer,
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+            else
+                OrionLib:MakeNotification({
+                    Name = "❌ Error",
+                    Content = "Please select a player first!",
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+            end
+        end
+    })
+
+    -- Bring All Players Feature
+    PlayerTab:AddButton({
+        Name = "🚀 Bring All Players To Me",
+        Callback = function()
+            local LocalPlayer = game.Players.LocalPlayer
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local broughtCount = 0
+                
+                for i, v in pairs(game:GetService("Players"):GetPlayers()) do
+                    if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+                        v.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
+                        broughtCount = broughtCount + 1
+                    end
+                end
+                
+                OrionLib:MakeNotification({
+                    Name = "🚀 Players Brought",
+                    Content = "Successfully brought " .. broughtCount .. " players to you!",
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+            end
+        end
+    })
+
+    -- Teleport to Player Feature
+    PlayerTab:AddButton({
+        Name = "📍 Teleport To Player",
+        Callback = function()
+            if SelectedPlayer and SelectedPlayer ~= "None" then
+                local targetPlayer = game:GetService("Players"):FindFirstChild(SelectedPlayer)
+                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+                    
+                    OrionLib:MakeNotification({
+                        Name = "📍 Teleported",
+                        Content = "Teleported to " .. SelectedPlayer,
+                        Image = "rbxassetid://7072717775",
+                        Time = 3
+                    })
+                end
+            end
+        end
+    })
+
+    -- =============================================
+    -- TAB 3: SERVER CONTROL TAB (NEW)
+    -- =============================================
+    local ServerTab = Window:MakeTab({
+        Name = "Server Control",
+        Icon = "rbxassetid://7072717775",
+        PremiumOnly = false
+    })
+
+    ServerTab:AddSection({
+        Name = "💥 Server Actions"
+    })
+
+    -- Crash Server Feature
+    ServerTab:AddButton({
+        Name = "💥 Crash Server (Heavy)",
+        Callback = function()
+            OrionLib:MakeNotification({
+                Name = "💥 Starting Server Crash",
+                Content = "Heavy crash sequence initiated...",
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+            
+            -- Method 1: Mass part creation
+            for i = 1, 300 do
+                local part = Instance.new("Part")
+                part.Parent = workspace
+                part.Size = Vector3.new(100, 100, 100)
+                part.Position = Vector3.new(math.random(-500, 500), math.random(100, 1000), math.random(-500, 500))
+                part.Anchored = true
+                part.Material = Enum.Material.Neon
+                part.BrickColor = BrickColor.Random()
+            end
+            
+            -- Method 2: Body positions
+            for i = 1, 200 do
+                local body = Instance.new("BodyPosition")
+                body.Parent = workspace
+                body.Position = Vector3.new(0, 10000, 0)
+                body.MaxForce = Vector3.new(100000, 100000, 100000)
+            end
+            
+            -- Method 3: Script injection attempt
+            spawn(function()
+                while true do
+                    for i = 1, 50 do
+                        local s = Instance.new("Script")
+                        s.Parent = workspace
+                    end
+                    wait()
+                end
+            end)
+        end
+    })
+
+    -- Server Lag Feature
+    ServerTab:AddButton({
+        Name = "🌪️ Create Server Lag",
+        Callback = function()
+            OrionLib:MakeNotification({
+                Name = "🌪️ Generating Lag",
+                Content = "Creating server lag spikes...",
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+            
+            for i = 1, 100 do
+                local part = Instance.new("Part")
+                part.Parent = workspace
+                part.Size = Vector3.new(50, 50, 50)
+                part.Position = Vector3.new(math.random(-1000, 1000), math.random(500, 2000), math.random(-1000, 1000))
+                part.Anchored = true
+                
+                -- Add welds to increase processing
+                local weld = Instance.new("Weld")
+                weld.Parent = part
+            end
+        end
+    })
+
+    -- Clear Workspace Feature
+    ServerTab:AddButton({
+        Name = "🗑️ Clear Workspace Parts",
+        Callback = function()
+            local count = 0
+            for i, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("Part") then
+                    v:Destroy()
+                    count = count + 1
+                end
+            end
+            
+            OrionLib:MakeNotification({
+                Name = "🗑️ Workspace Cleared",
+                Content = "Removed " .. count .. " parts from workspace",
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+        end
+    })
+
+    ServerTab:AddSection({
+        Name = "⚡ Server Utilities"
+    })
+
+    -- Freeze All Players
+    ServerTab:AddButton({
+        Name = "❄️ Freeze All Players",
+        Callback = function()
+            local frozenCount = 0
+            for i, v in pairs(game:GetService("Players"):GetPlayers()) do
+                if v ~= game.Players.LocalPlayer and v.Character then
+                    local humanoid = v.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.WalkSpeed = 0
+                        humanoid.JumpPower = 0
+                        frozenCount = frozenCount + 1
+                    end
+                end
+            end
+            
+            OrionLib:MakeNotification({
+                Name = "❄️ Players Frozen",
+                Content = "Frozen " .. frozenCount .. " players",
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+        end
+    })
+
+    -- Unfreeze All Players
+    ServerTab:AddButton({
+        Name = "🔥 Unfreeze All Players",
+        Callback = function()
+            local unfrozenCount = 0
+            for i, v in pairs(game:GetService("Players"):GetPlayers()) do
+                if v.Character then
+                    local humanoid = v.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.WalkSpeed = 16
+                        humanoid.JumpPower = 50
+                        unfrozenCount = unfrozenCount + 1
+                    end
+                end
+            end
+            
+            OrionLib:MakeNotification({
+                Name = "🔥 Players Unfrozen",
+                Content = "Unfrozen " .. unfrozenCount .. " players",
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+        end
+    })
+
+    -- =============================================
+    -- TAB 4: SETTINGS TAB
     -- =============================================
     local SettingsTab = Window:MakeTab({
         Name = "Settings",
@@ -341,7 +620,7 @@ local function createMainUI()
         Name = "📝 Information"
     })
 
-    SettingsTab:AddParagraph("🎉 Anggazyy Hub", "✨ Version 2.0\n💜 Premium Teleport Hub\n🎯 Created by Anggazyy")
+    SettingsTab:AddParagraph("🎉 Anggazyy Hub", "✨ Version 3.0\n💜 Premium Control Hub\n🎯 Created by Anggazyy\n🌊 Added: Flood Ping, Server Crash, Player Control")
 
     -- Initialize Orion dengan theme ungu
     OrionLib:Init()
@@ -369,6 +648,37 @@ local function createMainUI()
                 wait(0.1)
                 OpenButton.Size = UDim2.new(0, 50, 0, 50)
             end)
+        end
+    end)
+
+    -- Make floating icon draggable
+    local Dragging = false
+    local DragInput, DragStart, StartPos
+
+    OpenButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            Dragging = true
+            DragStart = input.Position
+            StartPos = OpenButton.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    Dragging = false
+                end
+            end)
+        end
+    end)
+
+    OpenButton.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            DragInput = input
+        end
+    end)
+
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if input == DragInput and Dragging then
+            local Delta = input.Position - DragStart
+            OpenButton.Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + Delta.X, StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y)
         end
     end)
 
@@ -441,7 +751,7 @@ local function showLoadingScreen()
 
     -- Animated text function
     local function animateText(speed)
-        local fullText = "ANGGAZYY HUB"
+        local fullText = "ANGGAZYY HUB V3"
         local currentText = ""
         
         for i = 1, #fullText do
@@ -472,14 +782,14 @@ local function showLoadingScreen()
         
         -- Show notification dulu sebelum buka UI
         OrionLib:MakeNotification({
-            Name = "💜 Anggazyy Hub Ready!",
-            Content = "Click the purple icon to open menu!",
+            Name = "💜 Anggazyy Hub V3 Ready!",
+            Content = "New Features: Flood Ping, Server Crash, Player Control!",
             Image = "rbxassetid://7072717775",
             Time = 4
         })
         
         -- Tunggu sebentar lalu buat UI
-        wait(1.5)
+        wait(5.1)
         createMainUI()
     end)
 end
