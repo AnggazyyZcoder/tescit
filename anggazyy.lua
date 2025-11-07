@@ -145,7 +145,7 @@ local function createMainUI()
     uiInitialized = true
 
     Window = OrionLib:MakeWindow({
-        Name = "Anggazyy Hub",
+        Name = "Anggazyy Hub - Fish It",
         HidePremium = false,
         SaveConfig = true,
         ConfigFolder = "AnggazyyConfig",
@@ -159,10 +159,45 @@ local function createMainUI()
         local MainFrame = OrionGui:FindFirstChild("MainFrame")
         if MainFrame then
             -- Ukuran yang lebih kecil dan tidak menutupi layar
-            MainFrame.Size = UDim2.new(0, 500, 0, 400) -- Lebar 500, tinggi 400
-            MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200) -- Posisi tengah
+            MainFrame.Size = UDim2.new(0, 200, 0, 300) -- Lebar 500, tinggi 450
+            MainFrame.Position = UDim2.new(0.5, -250, 0.5, -225) -- Posisi tengah
+            
+            -- Hapus logo money yang tidak perlu
+            local MoneyIcon = MainFrame:FindFirstChild("MoneyIcon", true)
+            if MoneyIcon then
+                MoneyIcon:Destroy()
+            end
         end
     end
+
+    -- TAB UTAMA & PENJELASAN
+    local MainTab = Window:MakeTab({
+        Name = "📋 Info & Guide",
+        Icon = "rbxassetid://7072717775",
+        PremiumOnly = false
+    })
+
+    MainTab:AddSection({
+        Name = "🎯 Tentang Script Ini"
+    })
+
+    MainTab:AddParagraph("🌟 FITUR UTAMA", 
+    "Script ini dibuat khusus untuk game **Fish It!** dengan fitur:\n\n" ..
+    "🎣 **Auto Fishing** - Sistem memancing otomatis\n" ..
+    "📍 **Coordinate Display** - Menampilkan koordinat karakter\n" ..
+    "🚀 **Player Boosts** - Meningkatkan WalkSpeed & JumpPower\n" ..
+    "⚡ **Quick Teleport** - Teleport ke lokasi penting")
+
+    MainTab:AddParagraph("📝 CARA PENGGUNAAN",
+    "1. **Auto Fishing**: Pergi ke tab '🎣 Auto Fish' dan klik toggle\n" ..
+    "2. **Koordinat**: Aktifkan di tab 'Teleport' untuk melihat posisi\n" ..
+    "3. **Player Boost**: Atur WalkSpeed/JumpPower di tab 'Player'\n" ..
+    "4. **Teleport**: Pilih lokasi di tab 'Teleport'")
+
+    MainTab:AddParagraph("⚠️ PERINGATAN",
+    "• Gunakan dengan bijak\n" ..
+    "• Risiko ditanggung pengguna\n" ..
+    "• Disarankan untuk tidak abuse fitur")
 
     -- TAB AUTO FISH
     local AutoTab = Window:MakeTab({
@@ -175,6 +210,13 @@ local function createMainUI()
         Name = "Auto Fishing Control"
     })
 
+    AutoTab:AddParagraph("ℹ️ FITUR AUTO FISH",
+    "Fitur ini akan secara otomatis melakukan:\n" ..
+    "• Casting fishing rod\n" ..
+    "• Menunggu ikan menyambar\n" ..
+    "• Reeling ikan secara otomatis\n" ..
+    "• Mengulangi proses terus menerus")
+
     AutoTab:AddButton({
         Name = "🎣 Toggle Auto Fishing",
         Callback = function()
@@ -186,18 +228,27 @@ local function createMainUI()
 
     -- TAB TELEPORT
     local TeleportTab = Window:MakeTab({
-        Name = "Teleport",
+        Name = "📍 Teleport",
         Icon = "rbxassetid://7072717775",
         PremiumOnly = false
     })
 
     TeleportTab:AddSection({Name = "📍 Teleport Locations"})
+    
+    TeleportTab:AddParagraph("🗺️ LOKASI TELEPORT",
+    "Teleport ke berbagai lokasi strategis:\n" ..
+    "• Spawn Point - Kembali ke spawn awal\n" ..
+    "• Mountain Top - Puncak gunung\n" ..
+    "• Beach Side - Area pantai\n" ..
+    "• City Center - Pusat kota")
+    
     local teleportLocations = {
         {"🏠 Spawn Point", Vector3.new(0, 10, 0)},
         {"⛰️ Mountain Top", Vector3.new(200, 150, 200)},
         {"🏖️ Beach Side", Vector3.new(300, 15, -200)},
         {"🏙️ City Center", Vector3.new(100, 30, 100)},
     }
+    
     for _, location in ipairs(teleportLocations) do
         TeleportTab:AddButton({
             Name = location[1],
@@ -217,26 +268,53 @@ local function createMainUI()
     end
 
     TeleportTab:AddSection({Name = "⚙️ Utility"})
+    
+    TeleportTab:AddParagraph("📍 COORDINATE DISPLAY",
+    "Fitur untuk menampilkan koordinat real-time:\n" ..
+    "• X, Y, Z position\n" ..
+    "• Update setiap 0.1 detik\n" ..
+    "• Posisi di tengah atas layar")
+    
     TeleportTab:AddToggle({
         Name = "📍 Show Coordinates",
         Default = false,
         Callback = function(Value)
             if Value then
                 createCoordinateDisplay()
+                OrionLib:MakeNotification({
+                    Name = "📍 Coordinates",
+                    Content = "Coordinate display enabled!",
+                    Image = "rbxassetid://7072717775",
+                    Time = 2
+                })
             else
-                if coordinateDisplay then coordinateDisplay:Destroy() end
+                if coordinateDisplay then 
+                    coordinateDisplay:Destroy() 
+                    OrionLib:MakeNotification({
+                        Name = "📍 Coordinates",
+                        Content = "Coordinate display disabled!",
+                        Image = "rbxassetid://7072717775",
+                        Time = 2
+                    })
+                end
             end
         end
     })
 
     -- TAB PLAYER
     local PlayerTab = Window:MakeTab({
-        Name = "Player",
+        Name = "👤 Player",
         Icon = "rbxassetid://7072717775",
         PremiumOnly = false
     })
 
     PlayerTab:AddSection({Name = "Player Settings"})
+    
+    PlayerTab:AddParagraph("⚡ PLAYER BOOST",
+    "Tingkatkan kemampuan karakter:\n" ..
+    "• WalkSpeed - Kecepatan berjalan\n" ..
+    "• JumpPower - Kekuatan lompat\n" ..
+    "• Nilai default: WalkSpeed=16, JumpPower=50")
     
     local WalkSpeedSlider = PlayerTab:AddSlider({
         Name = "Walk Speed",
@@ -292,7 +370,7 @@ local function showLoadingScreen()
     Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
 
     local Label = Instance.new("TextLabel", Background)
-    Label.Text = "ANGGAZYY HUB"
+    Label.Text = "ANGGAZYY HUB - FISH IT"
     Label.TextColor3 = Color3.fromRGB(255, 255, 255)
     Label.Font = Enum.Font.GothamBold
     Label.TextSize = 24
