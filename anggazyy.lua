@@ -1,33 +1,4 @@
-local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jensonhirst/Orion/main/source"))()
-
--- Floating Icon
-local ScreenGui = Instance.new("ScreenGui")
-local OpenButton = Instance.new("ImageButton")
-local UICorner = Instance.new("UICorner")
-local UIStroke = Instance.new("UIStroke")
-
-ScreenGui.Parent = game.CoreGui
-ScreenGui.Name = "AnggazyyHubUI"
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-OpenButton.Parent = ScreenGui
-OpenButton.Size = UDim2.new(0, 50, 0, 50)
-OpenButton.Position = UDim2.new(0, 15, 0.5, -25)
-OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
-OpenButton.BackgroundTransparency = 0.1
-OpenButton.AutoButtonColor = false
-OpenButton.Image = "rbxassetid://7072717775"
-OpenButton.ScaleType = Enum.ScaleType.Fit
-OpenButton.BorderSizePixel = 0
-OpenButton.Visible = false
-
-UICorner.Parent = OpenButton
-UICorner.CornerRadius = UDim.new(0.3, 0)
-
-UIStroke.Parent = OpenButton
-UIStroke.Color = Color3.fromRGB(138, 43, 226)
-UIStroke.Thickness = 2
-UIStroke.Transparency = 0.3
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- Variables
 local player = game.Players.LocalPlayer
@@ -39,27 +10,25 @@ local uiInitialized = false
 -- 🐟 AUTO FISH SYSTEM
 ------------------------------------------------------------
 local autoFishEnabled = false
-local autoFishConnection = nil
 local statusLabel = nil
 
 local function toggleAutoFish()
     autoFishEnabled = not autoFishEnabled
     if autoFishEnabled then
-        OrionLib:MakeNotification({
-            Name = "🎣 Auto Fishing",
+        Rayfield:Notify({
+            Title = "🎣 Auto Fishing",
             Content = "Auto Fishing Enabled!",
-            Image = "rbxassetid://7072717775",
-            Time = 2
+            Duration = 2,
+            Image = 7072717775
         })
         if statusLabel then
-            statusLabel:Set("Status: Enabled")
+            statusLabel:Set("Status: 🟢 Enabled")
         end
 
         -- Jalankan fungsi auto fish
         task.spawn(function()
             while autoFishEnabled do
                 pcall(function()
-                    -- panggil event fishing sesuai sistem Replion bawaan Fish It
                     local ReplicatedStorage = game:GetService("ReplicatedStorage")
                     local Replion = require(ReplicatedStorage.Packages.Replion)
                     local Data = Replion.Client:WaitReplion("Data")
@@ -67,18 +36,18 @@ local function toggleAutoFish()
                     local updateFishing = Net:RemoteFunction("UpdateAutoFishingState")
                     updateFishing:InvokeServer(true)
                 end)
-                task.wait(5) -- delay agar tidak spam, bisa ubah sesuai kebutuhan
+                task.wait(5)
             end
         end)
     else
-        OrionLib:MakeNotification({
-            Name = "🎣 Auto Fishing",
+        Rayfield:Notify({
+            Title = "🎣 Auto Fishing",
             Content = "Auto Fishing Disabled!",
-            Image = "rbxassetid://7072717775",
-            Time = 2
+            Duration = 2,
+            Image = 7072717775
         })
         if statusLabel then
-            statusLabel:Set("Status: Disabled")
+            statusLabel:Set("Status: 🔴 Disabled")
         end
 
         pcall(function()
@@ -105,17 +74,22 @@ local function createCoordinateDisplay()
 
     CoordGui.Name = "CoordinateDisplay"
     CoordGui.Parent = game.CoreGui
+    CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
     CoordFrame.Parent = CoordGui
     CoordFrame.Size = UDim2.new(0, 150, 0, 40)
     CoordFrame.Position = UDim2.new(0.5, -75, 0, 5)
     CoordFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     CoordFrame.BackgroundTransparency = 0.1
     CoordFrame.BorderSizePixel = 0
+    
     UICorner.Parent = CoordFrame
     UICorner.CornerRadius = UDim.new(0.2, 0)
+    
     UIStroke.Parent = CoordFrame
     UIStroke.Color = Color3.fromRGB(147, 112, 219)
     UIStroke.Thickness = 1.5
+    
     CoordLabel.Parent = CoordFrame
     CoordLabel.Size = UDim2.new(1, 0, 1, 0)
     CoordLabel.BackgroundTransparency = 1
@@ -123,6 +97,7 @@ local function createCoordinateDisplay()
     CoordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     CoordLabel.TextSize = 11
     CoordLabel.Font = Enum.Font.GothamMedium
+    
     coordinateDisplay = CoordGui
 
     spawn(function()
@@ -138,244 +113,265 @@ local function createCoordinateDisplay()
 end
 
 ------------------------------------------------------------
--- 💜 MAIN UI - PERBAIKAN UTAMA DI SINI
+-- 💜 MAIN UI RAYFIELD
 ------------------------------------------------------------
 local function createMainUI()
     if uiInitialized then return end
     uiInitialized = true
 
-    Window = OrionLib:MakeWindow({
-        Name = "Anggazyy Hub - Fish It",
-        HidePremium = false,
-        SaveConfig = true,
-        ConfigFolder = "AnggazyyConfig",
-        IntroEnabled = false,
-        Center = true
+    Window = Rayfield:CreateWindow({
+        Name = "🎣 Anggazyy Hub - Fish It",
+        LoadingTitle = "Loading Anggazyy Hub...",
+        LoadingSubtitle = "by Anggazyy",
+        ConfigurationSaving = {
+            Enabled = true,
+            FolderName = "AnggazyyHub",
+            FileName = "Config"
+        },
+        Discord = {
+            Enabled = false,
+            Invite = "noinvitelink",
+            RememberJoins = true
+        },
+        KeySystem = false,
+        KeySettings = {
+            Title = "Anggazyy Hub",
+            Subtitle = "Key System",
+            Note = "No key required",
+            FileName = "Key",
+            SaveKey = true,
+            GrabKeyFromSite = false,
+            Key = {"Hello"}
+        }
     })
-
-    -- Set ukuran window agar tidak fullscreen
-    local OrionGui = game:GetService("CoreGui"):FindFirstChild("Orion")
-    if OrionGui then
-        local MainFrame = OrionGui:FindFirstChild("MainFrame")
-        if MainFrame then
-            -- Ukuran yang lebih kecil dan tidak menutupi layar
-            MainFrame.Size = UDim2.new(0, 200, 0, 300) -- Lebar 500, tinggi 450
-            MainFrame.Position = UDim2.new(0.5, -250, 0.5, -225) -- Posisi tengah
-            
-            -- Hapus logo money yang tidak perlu
-            local MoneyIcon = MainFrame:FindFirstChild("MoneyIcon", true)
-            if MoneyIcon then
-                MoneyIcon:Destroy()
-            end
-        end
-    end
 
     -- TAB UTAMA & PENJELASAN
-    local MainTab = Window:MakeTab({
-        Name = "📋 Info & Guide",
-        Icon = "rbxassetid://7072717775",
-        PremiumOnly = false
+    local MainTab = Window:CreateTab("📋 Info & Guide", 7072717775)
+
+    local MainSection = MainTab:CreateSection("🎯 Tentang Script Ini")
+
+    local InfoParagraph = MainTab:CreateParagraph({
+        Title = "🌟 FITUR UTAMA",
+        Content = "Script ini dibuat khusus untuk game **Fish It!** dengan fitur:\n\n" ..
+                "🎣 **Auto Fishing** - Sistem memancing otomatis\n" ..
+                "📍 **Coordinate Display** - Menampilkan koordinat karakter\n" ..
+                "🚀 **Player Boosts** - Meningkatkan WalkSpeed & JumpPower\n" ..
+                "⚡ **Quick Teleport** - Teleport ke lokasi penting"
     })
 
-    MainTab:AddSection({
-        Name = "🎯 Tentang Script Ini"
+    local UsageParagraph = MainTab:CreateParagraph({
+        Title = "📝 CARA PENGGUNAAN",
+        Content = "1. **Auto Fishing**: Pergi ke tab '🎣 Auto Fish' dan klik toggle\n" ..
+                "2. **Koordinat**: Aktifkan di tab '📍 Teleport' untuk melihat posisi\n" ..
+                "3. **Player Boost**: Atur WalkSpeed/JumpPower di tab '👤 Player'\n" ..
+                "4. **Teleport**: Pilih lokasi di tab '📍 Teleport'"
     })
 
-    MainTab:AddParagraph("🌟 FITUR UTAMA", 
-    "Script ini dibuat khusus untuk game **Fish It!** dengan fitur:\n\n" ..
-    "🎣 **Auto Fishing** - Sistem memancing otomatis\n" ..
-    "📍 **Coordinate Display** - Menampilkan koordinat karakter\n" ..
-    "🚀 **Player Boosts** - Meningkatkan WalkSpeed & JumpPower\n" ..
-    "⚡ **Quick Teleport** - Teleport ke lokasi penting")
-
-    MainTab:AddParagraph("📝 CARA PENGGUNAAN",
-    "1. **Auto Fishing**: Pergi ke tab '🎣 Auto Fish' dan klik toggle\n" ..
-    "2. **Koordinat**: Aktifkan di tab 'Teleport' untuk melihat posisi\n" ..
-    "3. **Player Boost**: Atur WalkSpeed/JumpPower di tab 'Player'\n" ..
-    "4. **Teleport**: Pilih lokasi di tab 'Teleport'")
-
-    MainTab:AddParagraph("⚠️ PERINGATAN",
-    "• Gunakan dengan bijak\n" ..
-    "• Risiko ditanggung pengguna\n" ..
-    "• Disarankan untuk tidak abuse fitur")
+    local WarningParagraph = MainTab:CreateParagraph({
+        Title = "⚠️ PERINGATAN",
+        Content = "• Gunakan dengan bijak\n" ..
+                "• Risiko ditanggung pengguna\n" ..
+                "• Disarankan untuk tidak abuse fitur"
+    })
 
     -- TAB AUTO FISH
-    local AutoTab = Window:MakeTab({
-        Name = "🎣 Auto Fish",
-        Icon = "rbxassetid://7072717775",
-        PremiumOnly = false
+    local AutoTab = Window:CreateTab("🎣 Auto Fish", 7072717775)
+
+    local AutoSection = AutoTab:CreateSection("Auto Fishing Control")
+
+    local AutoInfo = AutoTab:CreateParagraph({
+        Title = "ℹ️ FITUR AUTO FISH",
+        Content = "Fitur ini akan secara otomatis melakukan:\n" ..
+                "• Casting fishing rod\n" ..
+                "• Menunggu ikan menyambar\n" ..
+                "• Reeling ikan secara otomatis\n" ..
+                "• Mengulangi proses terus menerus"
     })
 
-    AutoTab:AddSection({
-        Name = "Auto Fishing Control"
-    })
-
-    AutoTab:AddParagraph("ℹ️ FITUR AUTO FISH",
-    "Fitur ini akan secara otomatis melakukan:\n" ..
-    "• Casting fishing rod\n" ..
-    "• Menunggu ikan menyambar\n" ..
-    "• Reeling ikan secara otomatis\n" ..
-    "• Mengulangi proses terus menerus")
-
-    AutoTab:AddButton({
+    local ToggleButton = AutoTab:CreateButton({
         Name = "🎣 Toggle Auto Fishing",
         Callback = function()
             toggleAutoFish()
-        end
+        end,
     })
 
-    statusLabel = AutoTab:AddParagraph("Status:", "Status: Disabled")
+    statusLabel = AutoTab:CreateLabel("Status: 🔴 Disabled")
 
     -- TAB TELEPORT
-    local TeleportTab = Window:MakeTab({
-        Name = "📍 Teleport",
-        Icon = "rbxassetid://7072717775",
-        PremiumOnly = false
+    local TeleportTab = Window:CreateTab("📍 Teleport", 7072717775)
+
+    local TeleportSection = TeleportTab:CreateSection("📍 Teleport Locations")
+
+    local TeleportInfo = TeleportTab:CreateParagraph({
+        Title = "🗺️ LOKASI TELEPORT",
+        Content = "Teleport ke berbagai lokasi strategis:\n" ..
+                "• Spawn Point - Kembali ke spawn awal\n" ..
+                "• Mountain Top - Puncak gunung\n" ..
+                "• Beach Side - Area pantai\n" ..
+                "• City Center - Pusat kota"
     })
 
-    TeleportTab:AddSection({Name = "📍 Teleport Locations"})
-    
-    TeleportTab:AddParagraph("🗺️ LOKASI TELEPORT",
-    "Teleport ke berbagai lokasi strategis:\n" ..
-    "• Spawn Point - Kembali ke spawn awal\n" ..
-    "• Mountain Top - Puncak gunung\n" ..
-    "• Beach Side - Area pantai\n" ..
-    "• City Center - Pusat kota")
-    
     local teleportLocations = {
         {"🏠 Spawn Point", Vector3.new(0, 10, 0)},
         {"⛰️ Mountain Top", Vector3.new(200, 150, 200)},
         {"🏖️ Beach Side", Vector3.new(300, 15, -200)},
         {"🏙️ City Center", Vector3.new(100, 30, 100)},
     }
-    
+
     for _, location in ipairs(teleportLocations) do
-        TeleportTab:AddButton({
+        TeleportTab:CreateButton({
             Name = location[1],
             Callback = function()
                 local char = player.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
                     char.HumanoidRootPart.CFrame = CFrame.new(location[2])
-                    OrionLib:MakeNotification({
-                        Name = "✨ Teleported!",
+                    Rayfield:Notify({
+                        Title = "✨ Teleported!",
                         Content = "Teleported to " .. location[1],
-                        Image = "rbxassetid://7072717775",
-                        Time = 3
+                        Duration = 3,
+                        Image = 7072717775
                     })
                 end
-            end
+            end,
         })
     end
 
-    TeleportTab:AddSection({Name = "⚙️ Utility"})
-    
-    TeleportTab:AddParagraph("📍 COORDINATE DISPLAY",
-    "Fitur untuk menampilkan koordinat real-time:\n" ..
-    "• X, Y, Z position\n" ..
-    "• Update setiap 0.1 detik\n" ..
-    "• Posisi di tengah atas layar")
-    
-    TeleportTab:AddToggle({
+    local UtilitySection = TeleportTab:CreateSection("⚙️ Utility")
+
+    local CoordInfo = TeleportTab:CreateParagraph({
+        Title = "📍 COORDINATE DISPLAY",
+        Content = "Fitur untuk menampilkan koordinat real-time:\n" ..
+                "• X, Y, Z position\n" ..
+                "• Update setiap 0.1 detik\n" ..
+                "• Posisi di tengah atas layar"
+    })
+
+    local CoordToggle = TeleportTab:CreateToggle({
         Name = "📍 Show Coordinates",
-        Default = false,
+        CurrentValue = false,
+        Flag = "ShowCoordinates",
         Callback = function(Value)
             if Value then
                 createCoordinateDisplay()
-                OrionLib:MakeNotification({
-                    Name = "📍 Coordinates",
+                Rayfield:Notify({
+                    Title = "📍 Coordinates",
                     Content = "Coordinate display enabled!",
-                    Image = "rbxassetid://7072717775",
-                    Time = 2
+                    Duration = 2,
+                    Image = 7072717775
                 })
             else
                 if coordinateDisplay then 
                     coordinateDisplay:Destroy() 
-                    OrionLib:MakeNotification({
-                        Name = "📍 Coordinates",
+                    Rayfield:Notify({
+                        Title = "📍 Coordinates",
                         Content = "Coordinate display disabled!",
-                        Image = "rbxassetid://7072717775",
-                        Time = 2
+                        Duration = 2,
+                        Image = 7072717775
                     })
                 end
             end
-        end
+        end,
     })
 
     -- TAB PLAYER
-    local PlayerTab = Window:MakeTab({
-        Name = "👤 Player",
-        Icon = "rbxassetid://7072717775",
-        PremiumOnly = false
+    local PlayerTab = Window:CreateTab("👤 Player", 7072717775)
+
+    local PlayerSection = PlayerTab:CreateSection("Player Settings")
+
+    local PlayerInfo = PlayerTab:CreateParagraph({
+        Title = "⚡ PLAYER BOOST",
+        Content = "Tingkatkan kemampuan karakter:\n" ..
+                "• WalkSpeed - Kecepatan berjalan\n" ..
+                "• JumpPower - Kekuatan lompat\n" ..
+                "• Nilai default: WalkSpeed=16, JumpPower=50"
     })
 
-    PlayerTab:AddSection({Name = "Player Settings"})
-    
-    PlayerTab:AddParagraph("⚡ PLAYER BOOST",
-    "Tingkatkan kemampuan karakter:\n" ..
-    "• WalkSpeed - Kecepatan berjalan\n" ..
-    "• JumpPower - Kekuatan lompat\n" ..
-    "• Nilai default: WalkSpeed=16, JumpPower=50")
-    
-    local WalkSpeedSlider = PlayerTab:AddSlider({
+    local WalkSpeedSlider = PlayerTab:CreateSlider({
         Name = "Walk Speed",
-        Min = 16,
-        Max = 100,
-        Default = 16,
-        Color = Color3.fromRGB(138, 43, 226),
+        Range = {16, 100},
         Increment = 1,
-        ValueName = "speed",
+        Suffix = "speed",
+        CurrentValue = 16,
+        Flag = "WalkSpeed",
         Callback = function(Value)
             local char = player.Character
             if char and char:FindFirstChild("Humanoid") then
                 char.Humanoid.WalkSpeed = Value
             end
-        end    
+        end,
     })
 
-    local JumpPowerSlider = PlayerTab:AddSlider({
+    local JumpPowerSlider = PlayerTab:CreateSlider({
         Name = "Jump Power",
-        Min = 50,
-        Max = 200,
-        Default = 50,
-        Color = Color3.fromRGB(138, 43, 226),
+        Range = {50, 200},
         Increment = 1,
-        ValueName = "power",
+        Suffix = "power",
+        CurrentValue = 50,
+        Flag = "JumpPower",
         Callback = function(Value)
             local char = player.Character
             if char and char:FindFirstChild("Humanoid") then
                 char.Humanoid.JumpPower = Value
             end
-        end    
+        end,
     })
 
-    OrionLib:Init()
-    
-    -- Jangan langsung toggle window saat pertama kali
-    OpenButton.Visible = true
-
-    OpenButton.MouseButton1Click:Connect(function()
-        if Window then 
-            Window:Toggle()
-        end
-    end)
+    -- Tambahkan button untuk reset player stats
+    PlayerTab:CreateButton({
+        Name = "🔄 Reset Player Stats",
+        Callback = function()
+            local char = player.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.WalkSpeed = 16
+                char.Humanoid.JumpPower = 50
+                WalkSpeedSlider:Set(16)
+                JumpPowerSlider:Set(50)
+                Rayfield:Notify({
+                    Title = "🔄 Reset Complete",
+                    Content = "Player stats reset to default!",
+                    Duration = 2,
+                    Image = 7072717775
+                })
+            end
+        end,
+    })
 end
 
 ------------------------------------------------------------
 -- LOADING SCREEN
 ------------------------------------------------------------
 local function showLoadingScreen()
-    local LoadingGui = Instance.new("ScreenGui", game.CoreGui)
-    local Background = Instance.new("Frame", LoadingGui)
+    local LoadingGui = Instance.new("ScreenGui")
+    LoadingGui.Name = "LoadingScreen"
+    LoadingGui.Parent = game.CoreGui
+    LoadingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local Background = Instance.new("Frame")
     Background.Size = UDim2.new(1, 0, 1, 0)
     Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
+    Background.Parent = LoadingGui
 
-    local Label = Instance.new("TextLabel", Background)
+    local Label = Instance.new("TextLabel")
     Label.Text = "ANGGAZYY HUB - FISH IT"
     Label.TextColor3 = Color3.fromRGB(255, 255, 255)
     Label.Font = Enum.Font.GothamBold
     Label.TextSize = 24
     Label.AnchorPoint = Vector2.new(0.5, 0.5)
     Label.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Label.BackgroundTransparency = 1
+    Label.Size = UDim2.new(0, 300, 0, 50)
+    Label.Parent = Background
+
+    local SubLabel = Instance.new("TextLabel")
+    SubLabel.Text = "Loading Rayfield UI..."
+    SubLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    SubLabel.Font = Enum.Font.Gotham
+    SubLabel.TextSize = 14
+    SubLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    SubLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
+    SubLabel.BackgroundTransparency = 1
+    SubLabel.Size = UDim2.new(0, 200, 0, 30)
+    SubLabel.Parent = Background
 
     task.wait(2)
     LoadingGui:Destroy()
