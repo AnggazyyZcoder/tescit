@@ -2,12 +2,104 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
--- Initialize Fluent dengan ukuran lebih kecil
+-- Loading Screen Function
+local function ShowLoadingScreen()
+    local LoadingGui = Instance.new("ScreenGui")
+    LoadingGui.Name = "LoadingScreen"
+    LoadingGui.Parent = game.CoreGui
+    LoadingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local Background = Instance.new("Frame")
+    Background.Size = UDim2.new(1, 0, 1, 0)
+    Background.BackgroundColor3 = Color3.fromRGB(10, 5, 20)
+    Background.BackgroundTransparency = 0.1
+    Background.BorderSizePixel = 0
+    Background.Parent = LoadingGui
+
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(0, 400, 0, 200)
+    Container.Position = UDim2.new(0.5, -200, 0.5, -100)
+    Container.BackgroundColor3 = Color3.fromRGB(25, 15, 35)
+    Container.BackgroundTransparency = 0.2
+    Container.BorderSizePixel = 0
+    Container.Parent = Background
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 12)
+    UICorner.Parent = Container
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Color = Color3.fromRGB(138, 43, 226)
+    UIStroke.Thickness = 3
+    UIStroke.Parent = Container
+
+    local Logo = Instance.new("ImageLabel")
+    Logo.Size = UDim2.new(0, 60, 0, 60)
+    Logo.Position = UDim2.new(0.5, -30, 0.3, -30)
+    Logo.BackgroundTransparency = 1
+    Logo.Image = "rbxassetid://7072717775"
+    Logo.ScaleType = Enum.ScaleType.Fit
+    Logo.Parent = Container
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 40)
+    Title.Position = UDim2.new(0, 0, 0.6, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = "ANGGAZYY HUB"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 24
+    Title.Font = Enum.Font.GothamBlack
+    Title.TextStrokeTransparency = 0.8
+    Title.Parent = Container
+
+    local Subtitle = Instance.new("TextLabel")
+    Subtitle.Size = UDim2.new(1, 0, 0, 20)
+    Subtitle.Position = UDim2.new(0, 0, 0.8, 0)
+    Subtitle.BackgroundTransparency = 1
+    Subtitle.Text = "Loading Premium Features..."
+    Subtitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+    Subtitle.TextSize = 14
+    Subtitle.Font = Enum.Font.Gotham
+    Subtitle.Parent = Container
+
+    -- Animate text
+    local text = "ANGGAZYY HUB"
+    local animatedText = ""
+    Title.Text = ""
+    
+    spawn(function()
+        for i = 1, #text do
+            animatedText = animatedText .. string.sub(text, i, i)
+            Title.Text = animatedText
+            wait(0.1)
+        end
+        
+        -- Rotate logo
+        while LoadingGui.Parent do
+            game:GetService("TweenService"):Create(Logo, TweenInfo.new(2, Enum.EasingStyle.Linear), {Rotation = 360}):Play()
+            wait(2.1)
+            Logo.Rotation = 0
+        end
+    end)
+
+    return LoadingGui
+end
+
+-- Show loading screen first
+local loadingScreen = ShowLoadingScreen()
+
+-- Wait for loading screen
+wait(3)
+
+-- Remove loading screen
+loadingScreen:Destroy()
+
+-- Initialize Fluent setelah loading screen
 local Window = Fluent:CreateWindow({
     Title = "Anggazyy Hub " .. Fluent.Version,
     SubTitle = "by Anggazyy",
-    TabWidth = 120,
-    Size = UDim2.fromOffset(400, 320), -- Diperkecil dari 580x460
+    TabWidth = 130,
+    Size = UDim2.fromOffset(450, 350),
     Acrylic = true,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.RightShift
@@ -17,7 +109,6 @@ local Window = Fluent:CreateWindow({
 local player = game.Players.LocalPlayer
 local autoFishEnabled = false
 local coordinateDisplay = nil
-local statusText = "Disabled ❌"
 
 -- Options for SaveManager
 local Options = Fluent.Options
@@ -35,20 +126,22 @@ Tabs.Main:AddParagraph({
     Content = "Automatically fish for you."
 })
 
+-- Status variable untuk menghindari error SetText
+local statusContent = "Disabled ❌"
+
 local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
     Title = "Enable Auto Fishing",
     Default = false,
     Callback = function(Value)
         autoFishEnabled = Value
         if autoFishEnabled then
-            statusText = "Enabled ✅"
+            statusContent = "Enabled ✅"
             Fluent:Notify({
                 Title = "🎣 Auto Fishing",
                 Content = "Auto Fishing enabled!",
-                Duration = 2
+                Duration = 3
             })
             
-            -- Enable auto fishing
             pcall(function()
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
                 local Net = require(ReplicatedStorage.Packages.Net)
@@ -56,14 +149,13 @@ local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
                 updateFishing:InvokeServer(true)
             end)
         else
-            statusText = "Disabled ❌"
+            statusContent = "Disabled ❌"
             Fluent:Notify({
                 Title = "🎣 Auto Fishing",
                 Content = "Auto Fishing disabled!",
-                Duration = 2
+                Duration = 3
             })
             
-            -- Disable auto fishing
             pcall(function()
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
                 local Net = require(ReplicatedStorage.Packages.Net)
@@ -71,13 +163,17 @@ local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
                 updateFishing:InvokeServer(false)
             end)
         end
-        Options.StatusLabel:SetText("Status: " .. statusText)
+        -- Update status dengan cara yang aman
+        if Options.StatusParagraph then
+            Options.StatusParagraph:SetDesc(statusContent)
+        end
     end
 })
 
-Options.StatusLabel = Tabs.Main:AddParagraph({
+-- Fix untuk paragraph yang bisa di-update
+Options.StatusParagraph = Tabs.Main:AddParagraph({
     Title = "Status:",
-    Content = statusText
+    Content = statusContent
 })
 
 Tabs.Main:AddButton({
@@ -151,7 +247,25 @@ Tabs.Teleport:AddToggle("CoordToggle", {
     end
 })
 
--- Player Section (Simplified)
+-- Player Section dengan Info Player
+Tabs.Player:AddParagraph({
+    Title = "Player Info",
+    Content = player.Name
+})
+
+-- Avatar display
+local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
+
+Tabs.Player:AddParagraph({
+    Title = "Avatar:",
+    Content = "Display Name: " .. player.DisplayName
+})
+
+Tabs.Player:AddParagraph({
+    Title = "Account Age:",
+    Content = player.AccountAge .. " days"
+})
+
 Tabs.Player:AddParagraph({
     Title = "Player Settings",
     Content = "Modify player properties."
@@ -188,12 +302,14 @@ Tabs.Player:AddSlider("JumpPower", {
 Tabs.Player:AddButton({
     Title = "Reset Character",
     Callback = function()
-        player.Character:BreakJoints()
-        Fluent:Notify({
-            Title = "🔄 Character Reset",
-            Content = "Character has been reset!",
-            Duration = 2
-        })
+        if player.Character then
+            player.Character:BreakJoints()
+            Fluent:Notify({
+                Title = "🔄 Character Reset",
+                Content = "Character has been reset!",
+                Duration = 2
+            })
+        end
     end
 })
 
@@ -212,14 +328,14 @@ function CreateCoordinateDisplay()
     CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
     CoordFrame.Parent = CoordGui
-    CoordFrame.Size = UDim2.new(0, 140, 0, 35) -- Diperkecil
-    CoordFrame.Position = UDim2.new(0.5, -70, 0, 5) -- Diposisikan lebih atas
+    CoordFrame.Size = UDim2.new(0, 150, 0, 35)
+    CoordFrame.Position = UDim2.new(0.5, -75, 0, 10)
     CoordFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     CoordFrame.BackgroundTransparency = 0.3
     CoordFrame.BorderSizePixel = 0
     
     UICorner.Parent = CoordFrame
-    UICorner.CornerRadius = UDim.new(0, 6)
+    UICorner.CornerRadius = UDim.new(0, 8)
     
     UIStroke.Parent = CoordFrame
     UIStroke.Color = Color3.fromRGB(100, 100, 200)
@@ -230,7 +346,7 @@ function CreateCoordinateDisplay()
     CoordLabel.BackgroundTransparency = 1
     CoordLabel.Text = "X: 0 | Y: 0 | Z: 0"
     CoordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CoordLabel.TextSize = 11 -- Diperkecil
+    CoordLabel.TextSize = 12
     CoordLabel.Font = Enum.Font.GothamMedium
     CoordLabel.TextStrokeTransparency = 0.8
     
@@ -249,69 +365,80 @@ function CreateCoordinateDisplay()
     end)
 end
 
--- Floating Icon yang lebih kecil
+-- Improved Floating Icon dengan drag functionality
 local function CreateFloatingIcon()
     local ScreenGui = Instance.new("ScreenGui")
-    local OpenButton = Instance.new("ImageButton")
-    local UICorner = Instance.new("UICorner")
-    local UIStroke = Instance.new("UIStroke")
-
+    ScreenGui.Name = "AnggazyyHubFloating"
     ScreenGui.Parent = game.CoreGui
-    ScreenGui.Name = "AnggazyyHubUI"
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-    OpenButton.Parent = ScreenGui
-    OpenButton.Size = UDim2.new(0, 40, 0, 40) -- Diperkecil
-    OpenButton.Position = UDim2.new(0, 10, 0.5, -20) -- Diposisikan lebih kiri atas
+    local OpenButton = Instance.new("ImageButton")
+    OpenButton.Name = "FloatingIcon"
+    OpenButton.Size = UDim2.new(0, 45, 0, 45)
+    OpenButton.Position = UDim2.new(0, 20, 0.5, -22)
     OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     OpenButton.BackgroundTransparency = 0.1
     OpenButton.AutoButtonColor = false
     OpenButton.Image = "rbxassetid://7072717775"
     OpenButton.ScaleType = Enum.ScaleType.Fit
     OpenButton.BorderSizePixel = 0
+    OpenButton.Parent = ScreenGui
 
-    UICorner.Parent = OpenButton
+    local UICorner = Instance.new("UICorner")
     UICorner.CornerRadius = UDim.new(0.3, 0)
+    UICorner.Parent = OpenButton
     
-    UIStroke.Parent = OpenButton
+    local UIStroke = Instance.new("UIStroke")
     UIStroke.Color = Color3.fromRGB(138, 43, 226)
     UIStroke.Thickness = 2
     UIStroke.Transparency = 0.3
+    UIStroke.Parent = OpenButton
+
+    -- Dragging functionality
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    OpenButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = OpenButton.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    OpenButton.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            OpenButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    -- Toggle UI functionality
+    local uiVisible = false
 
     OpenButton.MouseButton1Click:Connect(function()
-        Window:Dialog({
-            Title = "Anggazyy Hub",
-            Content = "Welcome! Use RightShift to toggle UI.",
-            Buttons = {
-                {
-                    Title = "OK",
-                    Callback = function()
-                        -- Do nothing, just close
-                    end
-                }
-            }
-        })
+        if not uiVisible then
+            Window:Show()
+            uiVisible = true
+        else
+            Window:Hide()
+            uiVisible = false
+        end
     end)
 
     return OpenButton
 end
-
--- Loading notifications yang lebih cepat
-task.spawn(function()
-    task.wait(1)
-    Fluent:Notify({
-        Title = "🔧 Initializing",
-        Content = "Loading features...",
-        Duration = 1.5
-    })
-    
-    task.wait(1.5)
-    Fluent:Notify({
-        Title = "✅ Ready",
-        Content = "Anggazyy Hub loaded!",
-        Duration = 2
-    })
-end)
 
 -- Create floating icon
 CreateFloatingIcon()
@@ -319,8 +446,8 @@ CreateFloatingIcon()
 -- Select first tab
 Window:SelectTab(1)
 
--- Add settings tab (simplified)
-Window:AddTab({ Title = "Settings", Icon = "settings" })
+-- Add settings tab
+local SettingsTab = Window:AddTab({ Title = "⚙️ Settings", Icon = "" })
 
 -- SaveManager and InterfaceManager
 SaveManager:SetLibrary(Fluent)
@@ -332,14 +459,54 @@ SaveManager:SetIgnoreIndexes({})
 InterfaceManager:SetFolder("FluentAnggazyy")
 SaveManager:SetFolder("FluentAnggazyy/specific-game")
 
--- Build interface sections
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
+InterfaceManager:BuildInterfaceSection(SettingsTab)
+SaveManager:BuildConfigSection(SettingsTab)
 
 SaveManager:LoadAutoloadConfig()
 
-Fluent:Notify({
-    Title = "Anggazyy Hub",
-    Content = "UI Loaded! Size: 400x320",
-    Duration = 3
+-- Delayed notifications setelah loading screen
+local notificationDelay = 1 -- delay antara notifikasi
+
+task.spawn(function()
+    wait(0.5) -- Tunggu sebentar setelah loading screen
+    
+    local totalFeatures = 3 -- Auto Fish, Teleport, Player
+    
+    for i = 1, totalFeatures do
+        Fluent:Notify({
+            Title = "🔧 Loading Features",
+            Content = "Loading " .. i .. "/" .. totalFeatures .. " features...",
+            Duration = 2
+        })
+        wait(notificationDelay + 1) -- Delay antara notifikasi
+    end
+    
+    wait(1)
+    
+    Fluent:Notify({
+        Title = "🔄 Fetching Version",
+        Content = "Fetching new version Anggazyy Hub...",
+        Duration = 2
+    })
+    
+    wait(notificationDelay + 1)
+    
+    Fluent:Notify({
+        Title = "✅ Ready",
+        Content = "Anggazyy Hub v1.0 loaded successfully!\nUse RightShift to toggle UI",
+        Duration = 4
+    })
+end)
+
+-- Window resize functionality
+Window:AddButton({
+    Title = "Toggle Size",
+    Callback = function()
+        local currentSize = Window.Root.Size
+        if currentSize == UDim2.fromOffset(450, 350) then
+            Window:SetSize(UDim2.fromOffset(550, 400))
+        else
+            Window:SetSize(UDim2.fromOffset(450, 350))
+        end
+    end
 })
