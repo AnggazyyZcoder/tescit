@@ -1,4 +1,5 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Load custom Rayfield without branding
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/rayfield.lua'))()
 
 -- Variables
 local player = game.Players.LocalPlayer
@@ -113,7 +114,7 @@ local function createCoordinateDisplay()
 end
 
 ------------------------------------------------------------
--- 💜 MAIN UI RAYFIELD
+-- 💜 MAIN UI ANGGAZYY HUB
 ------------------------------------------------------------
 local function createMainUI()
     if uiInitialized then return end
@@ -130,11 +131,30 @@ local function createMainUI()
         },
         Discord = {
             Enabled = false,
-            Invite = "noinvitelink",
-            RememberJoins = true
         },
         KeySystem = false,
     })
+
+    -- Remove Rayfield branding
+    task.spawn(function()
+        wait(2)
+        local CoreGui = game:GetService("CoreGui")
+        
+        -- Remove Rayfield watermark
+        local RayfieldWatermark = CoreGui:FindFirstChild("Rayfield_Watermark")
+        if RayfieldWatermark then
+            RayfieldWatermark:Destroy()
+        end
+        
+        -- Remove any other Rayfield branding elements
+        for _, obj in pairs(CoreGui:GetDescendants()) do
+            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                if string.find(obj.Text, "Rayfield") then
+                    obj.Text = string.gsub(obj.Text, "Rayfield", "Anggazyy Hub")
+                end
+            end
+        end
+    end)
 
     -- TAB UTAMA & PENJELASAN
     local MainTab = Window:CreateTab("📋 Info & Guide", 7072717775)
@@ -311,70 +331,10 @@ local function createMainUI()
             end
         end,
     })
-
-    -- Hide Rayfield watermark and show Anggazyy Hub
-    local CoreGui = game:GetService("CoreGui")
-    local RayfieldWatermark = CoreGui:FindFirstChild("Rayfield_Watermark")
-    if RayfieldWatermark then
-        RayfieldWatermark:Destroy()
-    end
-
-    -- Create custom Anggazyy Hub watermark
-    local AnggazyyWatermark = Instance.new("ScreenGui")
-    AnggazyyWatermark.Name = "AnggazyyHub_Watermark"
-    AnggazyyWatermark.Parent = CoreGui
-    AnggazyyWatermark.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-    local WatermarkFrame = Instance.new("Frame")
-    WatermarkFrame.Size = UDim2.new(0, 200, 0, 30)
-    WatermarkFrame.Position = UDim2.new(1, -210, 0, 10)
-    WatermarkFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
-    WatermarkFrame.BackgroundTransparency = 0.1
-    WatermarkFrame.BorderSizePixel = 0
-    WatermarkFrame.Parent = AnggazyyWatermark
-
-    local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(0.2, 0)
-    UICorner.Parent = WatermarkFrame
-
-    local UIStroke = Instance.new("UIStroke")
-    UIStroke.Color = Color3.fromRGB(147, 112, 219)
-    UIStroke.Thickness = 1.5
-    UIStroke.Parent = WatermarkFrame
-
-    local WatermarkLabel = Instance.new("TextLabel")
-    WatermarkLabel.Size = UDim2.new(1, 0, 1, 0)
-    WatermarkLabel.BackgroundTransparency = 1
-    WatermarkLabel.Text = "🎣 Anggazyy Hub v1.0"
-    WatermarkLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    WatermarkLabel.TextSize = 12
-    WatermarkLabel.Font = Enum.Font.GothamMedium
-    WatermarkLabel.Parent = WatermarkFrame
-
-    -- Function to toggle UI
-    local function toggleUI()
-        Rayfield:Destroy()
-        AnggazyyWatermark.Enabled = false
-        
-        task.wait(1)
-        
-        -- Recreate the UI when needed
-        AnggazyyWatermark.Enabled = true
-        createMainUI()
-    end
-
-    -- Bind key to toggle UI (optional)
-    local InputService = game:GetService("UserInputService")
-    InputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.RightShift then
-            toggleUI()
-        end
-    end)
 end
 
 ------------------------------------------------------------
--- CUSTOM LOADING SCREEN
+-- CUSTOM LOADING SCREEN ANGGAZYY HUB
 ------------------------------------------------------------
 local function showCustomLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
