@@ -1,8 +1,7 @@
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+-- Compkiller UI Implementation for Anggazyy Hub
+local Compkiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/4lpaca-pin/CompKiller/refs/heads/main/src/source.luau"))()
 
--- Loading Screen Function
+-- Loading Screen
 local function ShowLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
     LoadingGui.Name = "LoadingScreen"
@@ -17,52 +16,51 @@ local function ShowLoadingScreen()
     Background.Parent = LoadingGui
 
     local Container = Instance.new("Frame")
-    Container.Size = UDim2.new(0, 350, 0, 180)
-    Container.Position = UDim2.new(0.5, -175, 0.5, -90)
+    Container.Size = UDim2.new(0, 300, 0, 150)
+    Container.Position = UDim2.new(0.5, -150, 0.5, -75)
     Container.BackgroundColor3 = Color3.fromRGB(25, 15, 35)
     Container.BackgroundTransparency = 0.2
     Container.BorderSizePixel = 0
     Container.Parent = Background
 
     local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(0, 12)
+    UICorner.CornerRadius = UDim.new(0, 10)
     UICorner.Parent = Container
 
     local UIStroke = Instance.new("UIStroke")
     UIStroke.Color = Color3.fromRGB(138, 43, 226)
-    UIStroke.Thickness = 3
+    UIStroke.Thickness = 2
     UIStroke.Parent = Container
 
     local Logo = Instance.new("ImageLabel")
-    Logo.Size = UDim2.new(0, 50, 0, 50)
-    Logo.Position = UDim2.new(0.5, -25, 0.3, -25)
+    Logo.Size = UDim2.new(0, 40, 0, 40)
+    Logo.Position = UDim2.new(0.5, -20, 0.3, -20)
     Logo.BackgroundTransparency = 1
     Logo.Image = "rbxassetid://7072717775"
     Logo.ScaleType = Enum.ScaleType.Fit
     Logo.Parent = Container
 
     local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.Size = UDim2.new(1, 0, 0, 25)
     Title.Position = UDim2.new(0, 0, 0.6, 0)
     Title.BackgroundTransparency = 1
     Title.Text = ""
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Title.TextSize = 20
+    Title.TextSize = 18
     Title.Font = Enum.Font.GothamBlack
-    Title.TextStrokeTransparency = 0.8
     Title.Parent = Container
 
     local Subtitle = Instance.new("TextLabel")
-    Subtitle.Size = UDim2.new(1, 0, 0, 20)
+    Subtitle.Size = UDim2.new(1, 0, 0, 15)
     Subtitle.Position = UDim2.new(0, 0, 0.8, 0)
     Subtitle.BackgroundTransparency = 1
-    Subtitle.Text = "Loading Premium Features..."
+    Subtitle.Text = "Loading..."
     Subtitle.TextColor3 = Color3.fromRGB(180, 180, 180)
-    Subtitle.TextSize = 12
+    Subtitle.TextSize = 11
     Subtitle.Font = Enum.Font.Gotham
     Subtitle.Parent = Container
 
-    -- Animate text
+    -- Text animation
     local text = "ANGGAZYY HUB"
     local animatedText = ""
     
@@ -70,15 +68,15 @@ local function ShowLoadingScreen()
         for i = 1, #text do
             animatedText = animatedText .. string.sub(text, i, i)
             Title.Text = animatedText
-            wait(0.08)
+            wait(0.06)
         end
     end)
 
-    -- Rotate logo
+    -- Logo animation
     spawn(function()
         while LoadingGui.Parent do
-            game:GetService("TweenService"):Create(Logo, TweenInfo.new(1.5, Enum.EasingStyle.Linear), {Rotation = 360}):Play()
-            wait(1.6)
+            game:GetService("TweenService"):Create(Logo, TweenInfo.new(1.2, Enum.EasingStyle.Linear), {Rotation = 360}):Play()
+            wait(1.3)
             Logo.Rotation = 0
         end
     end)
@@ -86,58 +84,98 @@ local function ShowLoadingScreen()
     return LoadingGui
 end
 
--- Show loading screen first
+-- Show loading screen
 local loadingScreen = ShowLoadingScreen()
-wait(2.5)
+wait(2)
 loadingScreen:Destroy()
-
--- Initialize Fluent dengan ukuran lebih compact
-local Window = Fluent:CreateWindow({
-    Title = "Anggazyy Hub",
-    SubTitle = "v1.0",
-    TabWidth = 110,
-    Size = UDim2.fromOffset(380, 300),
-    Acrylic = true,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.RightShift
-})
 
 -- Variables
 local player = game.Players.LocalPlayer
 local autoFishEnabled = false
 local coordinateDisplay = nil
 
--- Options for SaveManager
-local Options = Fluent.Options
+-- Create Notifier
+local Notifier = Compkiller.newNotify()
 
--- Main Tabs
-local Tabs = {
-    Main = Window:AddTab({ Title = "Auto Fish", Icon = "" }),
-    Teleport = Window:AddTab({ Title = "Teleport", Icon = "" }),
-    Player = Window:AddTab({ Title = "Player", Icon = "" })
-}
+-- Loading UI
+Compkiller:Loader("rbxassetid://7072717775", 1.5).yield()
 
--- Auto Fish Section
-Tabs.Main:AddParagraph({
-    Title = "Fishing System",
-    Content = "Auto fishing features"
+-- Create Window dengan ukuran compact
+local Window = Compkiller.new({
+    Name = "ANGGAZYY HUB",
+    Keybind = "RightShift",
+    Logo = "rbxassetid://7072717775",
+    Scale = Compkiller.Scale.Window,
+    TextSize = 13, -- Text size lebih kecil
 })
 
-local statusContent = "Disabled ❌"
+-- Watermark dengan info player
+local Watermark = Window:Watermark()
 
-local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
-    Title = "Auto Fishing",
+Watermark:AddText({
+    Icon = "user",
+    Text = player.DisplayName,
+})
+
+Watermark:AddText({
+    Icon = "id-card",
+    Text = "ID: " .. player.UserId,
+})
+
+local Time = Watermark:AddText({
+    Icon = "clock",
+    Text = Compkiller:GetTimeNow(),
+})
+
+-- Update time
+task.spawn(function()
+    while true do 
+        task.wait(1)
+        Time:SetText(Compkiller:GetTimeNow())
+    end
+end)
+
+-- Create Tabs
+Window:DrawCategory({
+    Name = "Main Features"
+})
+
+-- Auto Fish Tab
+local AutoFishTab = Window:DrawTab({
+    Name = "Auto Fish",
+    Icon = "fish",
+    EnableScrolling = true
+})
+
+local FishingSection = AutoFishTab:DrawSection({
+    Name = "Fishing System",
+    Position = 'left'
+})
+
+local StatusLabel = FishingSection:AddParagraph({
+    Title = "Status",
+    Content = "Disabled ❌"
+})
+
+local AutoFishToggle = FishingSection:AddToggle({
+    Name = "Enable Auto Fishing",
+    Flag = "AutoFish_Enabled",
     Default = false,
     Callback = function(Value)
         autoFishEnabled = Value
         if autoFishEnabled then
-            statusContent = "Enabled ✅"
-            Fluent:Notify({
-                Title = "Auto Fishing",
-                Content = "Enabled successfully!",
-                Duration = 2
+            StatusLabel:Set({
+                Title = "Status", 
+                Content = "Enabled ✅"
+            })
+            Notifier.new({
+                Title = "🎣 Auto Fishing",
+                Content = "Auto fishing has been enabled!",
+                Duration = 3,
+                Icon = "rbxassetid://7072717775"
             })
             
+            -- Enable auto fishing
             pcall(function()
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
                 local Net = require(ReplicatedStorage.Packages.Net)
@@ -145,13 +183,18 @@ local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
                 updateFishing:InvokeServer(true)
             end)
         else
-            statusContent = "Disabled ❌"
-            Fluent:Notify({
-                Title = "Auto Fishing",
-                Content = "Disabled!",
-                Duration = 2
+            StatusLabel:Set({
+                Title = "Status",
+                Content = "Disabled ❌"
+            })
+            Notifier.new({
+                Title = "🎣 Auto Fishing",
+                Content = "Auto fishing has been disabled!",
+                Duration = 3,
+                Icon = "rbxassetid://7072717775"
             })
             
+            -- Disable auto fishing
             pcall(function()
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
                 local Net = require(ReplicatedStorage.Packages.Net)
@@ -162,78 +205,129 @@ local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
     end
 })
 
-Tabs.Main:AddParagraph({
-    Title = "Status:",
-    Content = statusContent
-})
-
-Tabs.Main:AddButton({
-    Title = "Quick Toggle",
+FishingSection:AddButton({
+    Name = "Quick Toggle",
     Callback = function()
-        Toggle:Set(not autoFishEnabled)
+        AutoFishToggle:Set(not autoFishEnabled)
     end
 })
 
--- Teleport Section
-Tabs.Teleport:AddParagraph({
-    Title = "Locations",
-    Content = "Quick teleport spots"
+-- Teleport Tab
+local TeleportTab = Window:DrawTab({
+    Name = "Teleport",
+    Icon = "map-pin",
+    EnableScrolling = true
+})
+
+local LocationsSection = TeleportTab:DrawSection({
+    Name = "Locations",
+    Position = 'left'
 })
 
 local teleportLocations = {
-    {"Spawn", Vector3.new(0, 10, 0)},
-    {"Mountain", Vector3.new(200, 150, 200)},
-    {"Beach", Vector3.new(300, 15, -200)},
-    {"City", Vector3.new(100, 30, 100)}
+    {"Spawn Point", Vector3.new(0, 10, 0)},
+    {"Mountain Top", Vector3.new(200, 150, 200)},
+    {"Beach Side", Vector3.new(300, 15, -200)},
+    {"City Center", Vector3.new(100, 30, 100)}
 }
 
 for i, location in ipairs(teleportLocations) do
-    Tabs.Teleport:AddButton({
-        Title = location[1],
+    LocationsSection:AddButton({
+        Name = location[1],
         Callback = function()
             local char = player.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 char.HumanoidRootPart.CFrame = CFrame.new(location[2])
-                Fluent:Notify({
-                    Title = "Teleported",
-                    Content = "To " .. location[1],
-                    Duration = 1.5
+                Notifier.new({
+                    Title = "✨ Teleported",
+                    Content = "Successfully teleported to " .. location[1],
+                    Duration = 2,
+                    Icon = "rbxassetid://7072717775"
+                })
+            else
+                Notifier.new({
+                    Title = "❌ Error",
+                    Content = "Character not found!",
+                    Duration = 2,
+                    Icon = "rbxassetid://7072717775"
                 })
             end
         end
     })
 end
 
-Tabs.Teleport:AddToggle("CoordToggle", {
-    Title = "Coordinates",
+local DisplaySection = TeleportTab:DrawSection({
+    Name = "Display",
+    Position = 'right'
+})
+
+DisplaySection:AddToggle({
+    Name = "Show Coordinates",
+    Flag = "Show_Coordinates",
     Default = false,
     Callback = function(Value)
         if Value then
             CreateCoordinateDisplay()
-        elseif coordinateDisplay then
-            coordinateDisplay:Destroy()
-            coordinateDisplay = nil
+            Notifier.new({
+                Title = "📍 Coordinates",
+                Content = "Coordinate display enabled!",
+                Duration = 2,
+                Icon = "rbxassetid://7072717775"
+            })
+        else
+            if coordinateDisplay then
+                coordinateDisplay:Destroy()
+                coordinateDisplay = nil
+            end
+            Notifier.new({
+                Title = "📍 Coordinates",
+                Content = "Coordinate display disabled!",
+                Duration = 2,
+                Icon = "rbxassetid://7072717775"
+            })
         end
     end
 })
 
--- Player Section
-Tabs.Player:AddParagraph({
-    Title = "Player Info",
+-- Player Tab
+local PlayerTab = Window:DrawTab({
+    Name = "Player",
+    Icon = "user",
+    EnableScrolling = true
+})
+
+local InfoSection = PlayerTab:DrawSection({
+    Name = "Player Info",
+    Position = 'left'
+})
+
+InfoSection:AddParagraph({
+    Title = "Username",
+    Content = player.Name
+})
+
+InfoSection:AddParagraph({
+    Title = "Display Name", 
     Content = player.DisplayName
 })
 
-Tabs.Player:AddParagraph({
-    Title = "User ID:",
-    Content = tostring(player.UserId)
+InfoSection:AddParagraph({
+    Title = "Account Age",
+    Content = player.AccountAge .. " days"
 })
 
-Tabs.Player:AddSlider("WalkSpeed", {
-    Title = "Walk Speed",
-    Default = 16,
+local SettingsSection = PlayerTab:DrawSection({
+    Name = "Settings",
+    Position = 'right'
+})
+
+SettingsSection:AddSlider({
+    Name = "Walk Speed",
     Min = 16,
     Max = 100,
-    Rounding = 1,
+    Default = 16,
+    Round = 0,
+    Flag = "WalkSpeed_Value",
     Callback = function(Value)
         local char = player.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -242,12 +336,13 @@ Tabs.Player:AddSlider("WalkSpeed", {
     end
 })
 
-Tabs.Player:AddSlider("JumpPower", {
-    Title = "Jump Power",
-    Default = 50,
+SettingsSection:AddSlider({
+    Name = "Jump Power",
     Min = 50,
     Max = 120,
-    Rounding = 1,
+    Default = 50,
+    Round = 0,
+    Flag = "JumpPower_Value",
     Callback = function(Value)
         local char = player.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -256,11 +351,17 @@ Tabs.Player:AddSlider("JumpPower", {
     end
 })
 
-Tabs.Player:AddButton({
-    Title = "Reset Character",
+SettingsSection:AddButton({
+    Name = "Reset Character",
     Callback = function()
         if player.Character then
             player.Character:BreakJoints()
+            Notifier.new({
+                Title = "🔄 Character Reset",
+                Content = "Character has been reset!",
+                Duration = 2,
+                Icon = "rbxassetid://7072717775"
+            })
         end
     end
 })
@@ -275,8 +376,8 @@ function CreateCoordinateDisplay()
     CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
     local CoordFrame = Instance.new("Frame")
-    CoordFrame.Size = UDim2.new(0, 140, 0, 30)
-    CoordFrame.Position = UDim2.new(0.5, -70, 0, 8)
+    CoordFrame.Size = UDim2.new(0, 130, 0, 25)
+    CoordFrame.Position = UDim2.new(0.5, -65, 0, 5)
     CoordFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     CoordFrame.BackgroundTransparency = 0.3
     CoordFrame.BorderSizePixel = 0
@@ -296,6 +397,7 @@ function CreateCoordinateDisplay()
     
     coordinateDisplay = CoordGui
 
+    -- Update coordinates
     task.spawn(function()
         while CoordGui and CoordGui.Parent do
             local char = player.Character
@@ -308,8 +410,8 @@ function CreateCoordinateDisplay()
     end)
 end
 
--- Advanced Floating Icon System
-local function CreateAdvancedFloatingIcon()
+-- Floating Icon System
+local function CreateFloatingIcon()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "AnggazyyHubFloating"
     ScreenGui.Parent = game.CoreGui
@@ -317,8 +419,8 @@ local function CreateAdvancedFloatingIcon()
 
     local OpenButton = Instance.new("ImageButton")
     OpenButton.Name = "FloatingIcon"
-    OpenButton.Size = UDim2.new(0, 40, 0, 40)
-    OpenButton.Position = UDim2.new(0, 15, 0.3, -20)
+    OpenButton.Size = UDim2.new(0, 35, 0, 35)
+    OpenButton.Position = UDim2.new(0, 10, 0.2, 0)
     OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     OpenButton.BackgroundTransparency = 0.1
     OpenButton.AutoButtonColor = false
@@ -330,7 +432,7 @@ local function CreateAdvancedFloatingIcon()
     Instance.new("UICorner", {CornerRadius = UDim.new(0.3, 0), Parent = OpenButton})
     Instance.new("UIStroke", {Color = Color3.fromRGB(138, 43, 226), Thickness = 2, Transparency = 0.3, Parent = OpenButton})
 
-    -- Enhanced Dragging System
+    -- Dragging functionality
     local UIS = game:GetService("UserInputService")
     local dragging, dragInput, dragStart, startPos
 
@@ -365,117 +467,95 @@ local function CreateAdvancedFloatingIcon()
         end
     end)
 
-    -- Reliable Toggle System
-    local uiVisible = true
-
+    -- Toggle UI functionality
     OpenButton.MouseButton1Click:Connect(function()
-        if uiVisible then
-            Window:Hide()
-            uiVisible = false
-        else
-            Window:Show()
-            uiVisible = true
-        end
-    end)
-
-    -- Right click context menu
-    OpenButton.MouseButton2Click:Connect(function()
-        Window:Dialog({
-            Title = "Anggazyy Hub",
-            Content = "Options:",
-            Buttons = {
-                {
-                    Title = "Show/Hide",
-                    Callback = function()
-                        if uiVisible then
-                            Window:Hide()
-                            uiVisible = false
-                        else
-                            Window:Show()
-                            uiVisible = true
-                        end
-                    end
-                },
-                {
-                    Title = "Close",
-                    Callback = function()
-                        ScreenGui:Destroy()
-                    end
-                }
-            }
-        })
+        Window:Toggle()
     end)
 
     return OpenButton
 end
 
--- Create the advanced floating icon
-CreateAdvancedFloatingIcon()
+-- Create floating icon
+CreateFloatingIcon()
 
--- Select first tab
-Window:SelectTab(1)
-
--- Settings tab
-local SettingsTab = Window:AddTab({ Title = "Settings", Icon = "" })
-
--- SaveManager Configuration
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
-SaveManager:IgnoreThemeSettings()
-InterfaceManager:SetFolder("AnggazyyHub")
-SaveManager:SetFolder("AnggazyyHub/" .. game.GameId)
-
-InterfaceManager:BuildInterfaceSection(SettingsTab)
-SaveManager:BuildConfigSection(SettingsTab)
-SaveManager:LoadAutoloadConfig()
-
--- Delayed notifications system
-local function SendDelayedNotifications()
-    local notifications = {
-        {title = "🔧 Loading", content = "Loading 1/3 features...", delay = 1},
-        {title = "🔄 Fetching", content = "Fetching Anggazyy Hub...", delay = 2},
-        {title = "✅ Ready", content = "Hub loaded! Use RightShift", delay = 1}
-    }
+-- Delayed notifications setelah loading
+task.spawn(function()
+    wait(1)
     
-    for i, notif in ipairs(notifications) do
-        wait(notif.delay)
-        Fluent:Notify({
-            Title = notif.title,
-            Content = notif.content,
-            Duration = 2
+    local features = {"Auto Fishing", "Teleport System", "Player Settings"}
+    
+    for i, feature in ipairs(features) do
+        Notifier.new({
+            Title = "🔧 Loading Features",
+            Content = "Loading " .. i .. "/" .. #features .. " - " .. feature,
+            Duration = 2,
+            Icon = "rbxassetid://7072717775"
         })
+        wait(2.5) -- Delay antara notifikasi
     end
-end
+    
+    wait(1)
+    
+    Notifier.new({
+        Title = "🔄 Fetching Version", 
+        Content = "Fetching Anggazyy Hub v1.0...",
+        Duration = 2,
+        Icon = "rbxassetid://7072717775"
+    })
+    
+    wait(2.5)
+    
+    Notifier.new({
+        Title = "✅ Ready to Use",
+        Content = "Anggazyy Hub loaded successfully!\nUse RightShift to toggle UI",
+        Duration = 4,
+        Icon = "rbxassetid://7072717775"
+    })
+end)
 
--- Start notifications
-spawn(SendDelayedNotifications)
+-- Settings Tab
+Window:DrawCategory({
+    Name = "Settings"
+})
 
--- Window control functions
-SettingsTab:AddButton({
-    Title = "Small Size",
-    Callback = function()
-        Window:SetSize(UDim2.fromOffset(350, 280))
+local SettingsTab = Window:DrawTab({
+    Name = "UI Settings",
+    Icon = "settings",
+    EnableScrolling = true
+})
+
+local UISection = SettingsTab:DrawSection({
+    Name = "Interface",
+    Position = 'left'
+})
+
+UISection:AddToggle({
+    Name = "Always Show Frame",
+    Default = false,
+    Callback = function(Value)
+        Window.AlwayShowTab = Value
     end
 })
 
-SettingsTab:AddButton({
-    Title = "Medium Size",
-    Callback = function()
-        Window:SetSize(UDim2.fromOffset(400, 320))
-    end
-})
-
-SettingsTab:AddButton({
-    Title = "Hide Interface",
+UISection:AddButton({
+    Name = "Hide Interface",
     Callback = function()
         Window:Hide()
     end
 })
 
--- Initial notification
-wait(4)
-Fluent:Notify({
+UISection:AddButton({
+    Name = "Show Interface", 
+    Callback = function()
+        Window:Show()
+    end
+})
+
+-- Final notification
+wait(8)
+Notifier.new({
     Title = "🎣 Anggazyy Hub",
     Content = "Floating icon can be dragged!\nClick to toggle UI",
-    Duration = 4
+    Duration = 5,
+    Icon = "rbxassetid://7072717775"
 })
