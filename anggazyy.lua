@@ -52,8 +52,7 @@ local function toggleAutoFish()
             Time = 2
         })
         if statusLabel then
-            statusLabel.Text = "Status: Enabled"
-            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            statusLabel:Set("Status: Enabled")
         end
 
         -- Jalankan fungsi auto fish
@@ -79,8 +78,7 @@ local function toggleAutoFish()
             Time = 2
         })
         if statusLabel then
-            statusLabel.Text = "Status: Disabled"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+            statusLabel:Set("Status: Disabled")
         end
 
         pcall(function()
@@ -140,13 +138,13 @@ local function createCoordinateDisplay()
 end
 
 ------------------------------------------------------------
--- 💜 MAIN UI
+-- 💜 MAIN UI - PERBAIKAN UTAMA DI SINI
 ------------------------------------------------------------
 local function createMainUI()
     if uiInitialized then return end
     uiInitialized = true
 
-    local Window = OrionLib:MakeWindow({
+    Window = OrionLib:MakeWindow({
         Name = "Anggazyy Hub",
         HidePremium = false,
         SaveConfig = true,
@@ -154,6 +152,17 @@ local function createMainUI()
         IntroEnabled = false,
         Center = true
     })
+
+    -- Set ukuran window agar tidak fullscreen
+    local OrionGui = game:GetService("CoreGui"):FindFirstChild("Orion")
+    if OrionGui then
+        local MainFrame = OrionGui:FindFirstChild("MainFrame")
+        if MainFrame then
+            -- Ukuran yang lebih kecil dan tidak menutupi layar
+            MainFrame.Size = UDim2.new(0, 500, 0, 400) -- Lebar 500, tinggi 400
+            MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200) -- Posisi tengah
+        end
+    end
 
     -- TAB AUTO FISH
     local AutoTab = Window:MakeTab({
@@ -174,9 +183,8 @@ local function createMainUI()
     })
 
     statusLabel = AutoTab:AddParagraph("Status:", "Status: Disabled")
-    statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
 
-    -- TAB TELEPORT (seperti sebelumnya)
+    -- TAB TELEPORT
     local TeleportTab = Window:MakeTab({
         Name = "Teleport",
         Icon = "rbxassetid://7072717775",
@@ -221,12 +229,56 @@ local function createMainUI()
         end
     })
 
+    -- TAB PLAYER
+    local PlayerTab = Window:MakeTab({
+        Name = "Player",
+        Icon = "rbxassetid://7072717775",
+        PremiumOnly = false
+    })
+
+    PlayerTab:AddSection({Name = "Player Settings"})
+    
+    local WalkSpeedSlider = PlayerTab:AddSlider({
+        Name = "Walk Speed",
+        Min = 16,
+        Max = 100,
+        Default = 16,
+        Color = Color3.fromRGB(138, 43, 226),
+        Increment = 1,
+        ValueName = "speed",
+        Callback = function(Value)
+            local char = player.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.WalkSpeed = Value
+            end
+        end    
+    })
+
+    local JumpPowerSlider = PlayerTab:AddSlider({
+        Name = "Jump Power",
+        Min = 50,
+        Max = 200,
+        Default = 50,
+        Color = Color3.fromRGB(138, 43, 226),
+        Increment = 1,
+        ValueName = "power",
+        Callback = function(Value)
+            local char = player.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.JumpPower = Value
+            end
+        end    
+    })
+
     OrionLib:Init()
-    if Window then Window:Toggle() end
+    
+    -- Jangan langsung toggle window saat pertama kali
     OpenButton.Visible = true
 
     OpenButton.MouseButton1Click:Connect(function()
-        if Window then Window:Toggle() end
+        if Window then 
+            Window:Toggle()
+        end
     end)
 end
 
