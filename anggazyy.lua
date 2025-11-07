@@ -121,7 +121,7 @@ local function createMainUI()
 
     Window = Rayfield:CreateWindow({
         Name = "🎣 Anggazyy Hub - Fish It",
-        LoadingTitle = "Loading Anggazyy Hub...",
+        LoadingTitle = "Memuat Anggazyy Hub...",
         LoadingSubtitle = "by Anggazyy",
         ConfigurationSaving = {
             Enabled = true,
@@ -134,15 +134,6 @@ local function createMainUI()
             RememberJoins = true
         },
         KeySystem = false,
-        KeySettings = {
-            Title = "Anggazyy Hub",
-            Subtitle = "Key System",
-            Note = "No key required",
-            FileName = "Key",
-            SaveKey = true,
-            GrabKeyFromSite = false,
-            Key = {"Hello"}
-        }
     })
 
     -- TAB UTAMA & PENJELASAN
@@ -152,19 +143,19 @@ local function createMainUI()
 
     local InfoParagraph = MainTab:CreateParagraph({
         Title = "🌟 FITUR UTAMA",
-        Content = "Script ini dibuat khusus untuk game **Fish It!** dengan fitur:\n\n" ..
-                "🎣 **Auto Fishing** - Sistem memancing otomatis\n" ..
-                "📍 **Coordinate Display** - Menampilkan koordinat karakter\n" ..
-                "🚀 **Player Boosts** - Meningkatkan WalkSpeed & JumpPower\n" ..
-                "⚡ **Quick Teleport** - Teleport ke lokasi penting"
+        Content = "Script ini dibuat khusus untuk game Fish It! dengan fitur:\n\n" ..
+                "🎣 Auto Fishing - Sistem memancing otomatis\n" ..
+                "📍 Coordinate Display - Menampilkan koordinat karakter\n" ..
+                "🚀 Player Boosts - Meningkatkan WalkSpeed & JumpPower\n" ..
+                "⚡ Quick Teleport - Teleport ke lokasi penting"
     })
 
     local UsageParagraph = MainTab:CreateParagraph({
         Title = "📝 CARA PENGGUNAAN",
-        Content = "1. **Auto Fishing**: Pergi ke tab '🎣 Auto Fish' dan klik toggle\n" ..
-                "2. **Koordinat**: Aktifkan di tab '📍 Teleport' untuk melihat posisi\n" ..
-                "3. **Player Boost**: Atur WalkSpeed/JumpPower di tab '👤 Player'\n" ..
-                "4. **Teleport**: Pilih lokasi di tab '📍 Teleport'"
+        Content = "1. Auto Fishing: Pergi ke tab '🎣 Auto Fish' dan klik toggle\n" ..
+                "2. Koordinat: Aktifkan di tab '📍 Teleport' untuk melihat posisi\n" ..
+                "3. Player Boost: Atur WalkSpeed/JumpPower di tab '👤 Player'\n" ..
+                "4. Teleport: Pilih lokasi di tab '📍 Teleport'"
     })
 
     local WarningParagraph = MainTab:CreateParagraph({
@@ -202,52 +193,46 @@ local function createMainUI()
 
     local TeleportSection = TeleportTab:CreateSection("📍 Teleport Locations")
 
-    local TeleportInfo = TeleportTab:CreateParagraph({
-        Title = "🗺️ LOKASI TELEPORT",
-        Content = "Teleport ke berbagai lokasi strategis:\n" ..
-                "• Spawn Point - Kembali ke spawn awal\n" ..
-                "• Mountain Top - Puncak gunung\n" ..
-                "• Beach Side - Area pantai\n" ..
-                "• City Center - Pusat kota"
-    })
-
     local teleportLocations = {
-        {"🏠 Spawn Point", Vector3.new(0, 10, 0)},
-        {"⛰️ Mountain Top", Vector3.new(200, 150, 200)},
-        {"🏖️ Beach Side", Vector3.new(300, 15, -200)},
-        {"🏙️ City Center", Vector3.new(100, 30, 100)},
+        "🏠 Spawn Point",
+        "⛰️ Mountain Top", 
+        "🏖️ Beach Side",
+        "🏙️ City Center"
     }
 
-    for _, location in ipairs(teleportLocations) do
-        TeleportTab:CreateButton({
-            Name = location[1],
-            Callback = function()
+    local locationVectors = {
+        ["🏠 Spawn Point"] = Vector3.new(0, 10, 0),
+        ["⛰️ Mountain Top"] = Vector3.new(200, 150, 200),
+        ["🏖️ Beach Side"] = Vector3.new(300, 15, -200),
+        ["🏙️ City Center"] = Vector3.new(100, 30, 100)
+    }
+
+    local TeleportDropdown = TeleportTab:CreateDropdown({
+        Name = "📍 Pilih Lokasi Teleport",
+        Options = teleportLocations,
+        CurrentOption = "🏠 Spawn Point",
+        Flag = "TeleportDropdown",
+        Callback = function(Option)
+            local location = locationVectors[Option]
+            if location then
                 local char = player.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
-                    char.HumanoidRootPart.CFrame = CFrame.new(location[2])
+                    char.HumanoidRootPart.CFrame = CFrame.new(location)
                     Rayfield:Notify({
                         Title = "✨ Teleported!",
-                        Content = "Teleported to " .. location[1],
+                        Content = "Teleported to " .. Option,
                         Duration = 3,
                         Image = 7072717775
                     })
                 end
-            end,
-        })
-    end
+            end
+        end,
+    })
 
     local UtilitySection = TeleportTab:CreateSection("⚙️ Utility")
 
-    local CoordInfo = TeleportTab:CreateParagraph({
-        Title = "📍 COORDINATE DISPLAY",
-        Content = "Fitur untuk menampilkan koordinat real-time:\n" ..
-                "• X, Y, Z position\n" ..
-                "• Update setiap 0.1 detik\n" ..
-                "• Posisi di tengah atas layar"
-    })
-
     local CoordToggle = TeleportTab:CreateToggle({
-        Name = "📍 Show Coordinates",
+        Name = "📍 Tampilkan Koordinat",
         CurrentValue = false,
         Flag = "ShowCoordinates",
         Callback = function(Value)
@@ -277,14 +262,6 @@ local function createMainUI()
     local PlayerTab = Window:CreateTab("👤 Player", 7072717775)
 
     local PlayerSection = PlayerTab:CreateSection("Player Settings")
-
-    local PlayerInfo = PlayerTab:CreateParagraph({
-        Title = "⚡ PLAYER BOOST",
-        Content = "Tingkatkan kemampuan karakter:\n" ..
-                "• WalkSpeed - Kecepatan berjalan\n" ..
-                "• JumpPower - Kekuatan lompat\n" ..
-                "• Nilai default: WalkSpeed=16, JumpPower=50"
-    })
 
     local WalkSpeedSlider = PlayerTab:CreateSlider({
         Name = "Walk Speed",
@@ -316,7 +293,6 @@ local function createMainUI()
         end,
     })
 
-    -- Tambahkan button untuk reset player stats
     PlayerTab:CreateButton({
         Name = "🔄 Reset Player Stats",
         Callback = function()
@@ -335,14 +311,74 @@ local function createMainUI()
             end
         end,
     })
+
+    -- Hide Rayfield watermark and show Anggazyy Hub
+    local CoreGui = game:GetService("CoreGui")
+    local RayfieldWatermark = CoreGui:FindFirstChild("Rayfield_Watermark")
+    if RayfieldWatermark then
+        RayfieldWatermark:Destroy()
+    end
+
+    -- Create custom Anggazyy Hub watermark
+    local AnggazyyWatermark = Instance.new("ScreenGui")
+    AnggazyyWatermark.Name = "AnggazyyHub_Watermark"
+    AnggazyyWatermark.Parent = CoreGui
+    AnggazyyWatermark.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local WatermarkFrame = Instance.new("Frame")
+    WatermarkFrame.Size = UDim2.new(0, 200, 0, 30)
+    WatermarkFrame.Position = UDim2.new(1, -210, 0, 10)
+    WatermarkFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
+    WatermarkFrame.BackgroundTransparency = 0.1
+    WatermarkFrame.BorderSizePixel = 0
+    WatermarkFrame.Parent = AnggazyyWatermark
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0.2, 0)
+    UICorner.Parent = WatermarkFrame
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Color = Color3.fromRGB(147, 112, 219)
+    UIStroke.Thickness = 1.5
+    UIStroke.Parent = WatermarkFrame
+
+    local WatermarkLabel = Instance.new("TextLabel")
+    WatermarkLabel.Size = UDim2.new(1, 0, 1, 0)
+    WatermarkLabel.BackgroundTransparency = 1
+    WatermarkLabel.Text = "🎣 Anggazyy Hub v1.0"
+    WatermarkLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    WatermarkLabel.TextSize = 12
+    WatermarkLabel.Font = Enum.Font.GothamMedium
+    WatermarkLabel.Parent = WatermarkFrame
+
+    -- Function to toggle UI
+    local function toggleUI()
+        Rayfield:Destroy()
+        AnggazyyWatermark.Enabled = false
+        
+        task.wait(1)
+        
+        -- Recreate the UI when needed
+        AnggazyyWatermark.Enabled = true
+        createMainUI()
+    end
+
+    -- Bind key to toggle UI (optional)
+    local InputService = game:GetService("UserInputService")
+    InputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.RightShift then
+            toggleUI()
+        end
+    end)
 end
 
 ------------------------------------------------------------
--- LOADING SCREEN
+-- CUSTOM LOADING SCREEN
 ------------------------------------------------------------
-local function showLoadingScreen()
+local function showCustomLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
-    LoadingGui.Name = "LoadingScreen"
+    LoadingGui.Name = "AnggazyyHub_Loading"
     LoadingGui.Parent = game.CoreGui
     LoadingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -351,27 +387,53 @@ local function showLoadingScreen()
     Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
     Background.Parent = LoadingGui
 
-    local Label = Instance.new("TextLabel")
-    Label.Text = "ANGGAZYY HUB - FISH IT"
-    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Label.Font = Enum.Font.GothamBold
-    Label.TextSize = 24
-    Label.AnchorPoint = Vector2.new(0.5, 0.5)
-    Label.Position = UDim2.new(0.5, 0, 0.5, 0)
-    Label.BackgroundTransparency = 1
-    Label.Size = UDim2.new(0, 300, 0, 50)
-    Label.Parent = Background
+    local MainLabel = Instance.new("TextLabel")
+    MainLabel.Text = "🎣 ANGGAZYY HUB"
+    MainLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MainLabel.Font = Enum.Font.GothamBold
+    MainLabel.TextSize = 28
+    MainLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    MainLabel.Position = UDim2.new(0.5, 0, 0.4, 0)
+    MainLabel.BackgroundTransparency = 1
+    MainLabel.Size = UDim2.new(0, 300, 0, 50)
+    MainLabel.Parent = Background
 
     local SubLabel = Instance.new("TextLabel")
-    SubLabel.Text = "Loading Rayfield UI..."
+    SubLabel.Text = "Fish It! Automation Suite"
     SubLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     SubLabel.Font = Enum.Font.Gotham
-    SubLabel.TextSize = 14
+    SubLabel.TextSize = 16
     SubLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-    SubLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
+    SubLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
     SubLabel.BackgroundTransparency = 1
-    SubLabel.Size = UDim2.new(0, 200, 0, 30)
+    SubLabel.Size = UDim2.new(0, 250, 0, 30)
     SubLabel.Parent = Background
+
+    local LoadingBar = Instance.new("Frame")
+    LoadingBar.Size = UDim2.new(0, 300, 0, 4)
+    LoadingBar.AnchorPoint = Vector2.new(0.5, 0.5)
+    LoadingBar.Position = UDim2.new(0.5, 0, 0.6, 0)
+    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 40, 80)
+    LoadingBar.BorderSizePixel = 0
+    LoadingBar.Parent = Background
+
+    local LoadingProgress = Instance.new("Frame")
+    LoadingProgress.Size = UDim2.new(0, 0, 1, 0)
+    LoadingProgress.BackgroundColor3 = Color3.fromRGB(147, 112, 219)
+    LoadingProgress.BorderSizePixel = 0
+    LoadingProgress.Parent = LoadingBar
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 2)
+    UICorner.Parent = LoadingBar
+
+    -- Animate loading bar
+    spawn(function()
+        for i = 1, 100 do
+            LoadingProgress.Size = UDim2.new(0, (i / 100) * 300, 1, 0)
+            task.wait(0.02)
+        end
+    end)
 
     task.wait(2)
     LoadingGui:Destroy()
@@ -381,4 +443,4 @@ end
 ------------------------------------------------------------
 -- STARTUP
 ------------------------------------------------------------
-showLoadingScreen()
+showCustomLoadingScreen()
