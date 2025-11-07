@@ -37,57 +37,149 @@ local coordinateDisplay = nil
 local Window = nil
 local uiInitialized = false
 
--- Auto Fishing Variables
+-- Auto Fishing Module (dari code yang Anda berikan)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextNotificationController_upvr = require(ReplicatedStorage.Controllers.TextNotificationController)
-local LocalPlayer_upvr = game:GetService("Players").LocalPlayer
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local TextNotificationController = require(ReplicatedStorage.Controllers.TextNotificationController)
+local Replion = require(ReplicatedStorage.Packages.Replion)
+local Constants = require(ReplicatedStorage.Shared.Constants)
+local FishingController = require(ReplicatedStorage.Controllers.FishingController)
+local GuiControl = require(ReplicatedStorage.Modules.GuiControl)
+local RegisterButtonTooltip = require(ReplicatedStorage.Modules.RegisterButtonTooltip)
+local Tooltip = require(ReplicatedStorage.Controllers.PotionController.Tooltip)
+local Net = require(ReplicatedStorage.Packages.Net)
+local spr = require(ReplicatedStorage.Packages.spr)
+
+-- Auto Fishing Variables
+local autoButton = LocalPlayer.PlayerGui:WaitForChild("HUD"):WaitForChild("Frame"):WaitForChild("Small Buttons"):WaitForChild("Auto")
+local uiActiveColors = {
+    Inactive = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromHex("#ff5d60")), ColorSequenceKeypoint.new(1, Color3.fromHex("#ff2256"))}),
+    Active = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromHex("#62ffb6")), ColorSequenceKeypoint.new(1, Color3.fromHex("#21ff7d"))}),
+}
+local autoFishingDebounce = false
+local isAutoFishingStarted = false
+local updateAutoRemote = Net:RemoteFunction("UpdateAutoFishingState")
+local dataReplicator = nil
+
+-- Auto Fishing Functions
+local function OnEquippedTypeChanged(equippedType)
+    autoButton.Visible = (equippedType == "Fishing Rods")
+end
+
+local function AutoFishingStateChanged(state)
+    spr.stop(autoButton.UIGradient)
+    spr.target(autoButton.UIGradient, 1, 3, { Color = state and uiActiveColors.Active or uiActiveColors.Inactive })
+    if isAutoFishingStarted then
+        local statusText = state and "Enabled" or "Disabled"
+        TextNotificationController:DeliverNotification({
+            Type = "Text",
+            Text = ("Auto Fishing: %s"):format(statusText),
+            TextColor = { R = 255, G = 0, B = 0 },
+        })
+    end
+end
+
+local function InitializeAutoFishing()
+    if not dataReplicator then
+        dataReplicator = Replion.Client:WaitReplion("Data")
+    end
+    
+    -- Hook tombol (hold button)
+    GuiControl:Hook("Hold Button", autoButton).Clicked:Connect(function()
+        if autoFishingDebounce then return end
+        autoFishingDebounce = true
+
+        local canToggle = true
+        if game.GameId ~= 6902403037 then
+            canToggle = (Constants.AutoFishingLevel <= dataReplicator:GetExpect("Level"))
+        end
+
+        if canToggle then
+            local current = dataReplicator:GetExpect("AutoFishing")
+            updateAutoRemote:InvokeServer(not current)
+            OrionLib:MakeNotification({
+                Name = "🎣 Auto Fishing",
+                Content = "Toggled Auto Fishing: " .. (not current and "ON" or "OFF"),
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+        else
+            TextNotificationController:DeliverNotification({
+                Type = "Text",
+                Text = ("Reach Level %d to unlock!"):format(Constants.AutoFishingLevel),
+                TextColor = { R = 255, G = 0, B = 0 },
+            })
+            OrionLib:MakeNotification({
+                Name = "🎣 Auto Fishing",
+                Content = "Level " .. Constants.AutoFishingLevel .. " required to unlock!",
+                Image = "rbxassetid://7072717775",
+                Time = 3
+            })
+        end
+
+        task.delay(0.75, function()
+            autoFishingDebounce = false
+        end)
+    end)
+
+    -- Subscribe ke perubahan data
+    dataReplicator:OnChange("EquippedType", OnEquippedTypeChanged)
+    OnEquippedTypeChanged(dataReplicator:GetExpect("EquippedType"))
+
+    dataReplicator:OnChange("AutoFishing", AutoFishingStateChanged)
+    AutoFishingStateChanged(dataReplicator:GetExpect("AutoFishing"))
+
+    RegisterButtonTooltip.new(autoButton, nil, function()
+        Tooltip.activate("Small", autoButton, { Description = "Toggle auto fishing" })
+    end, Tooltip.deactivate)
+
+    isAutoFishingStarted = true
+end
+
+-- Enhanced Auto Fishing Functions untuk GUI
 local AutoFishingEnabled = false
 local AutoFishingLoop = nil
 
--- Function untuk mendapatkan Auto Button
-local function getAutoButton()
-    local success, result = pcall(function()
-        return LocalPlayer_upvr.PlayerGui:WaitForChild("HUD"):WaitForChild("Frame"):WaitForChild("Small Buttons"):WaitForChild("Auto")
-    end)
-    return success and result or nil
+local function toggleAutoFishing()
+    if not dataReplicator then
+        OrionLib:MakeNotification({
+            Name = "🎣 Auto Fishing",
+            Content = "Auto Fishing system not initialized!",
+            Image = "rbxassetid://7072717775",
+            Time = 3
+        })
+        return false
+    end
+    
+    local canToggle = true
+    if game.GameId ~= 6902403037 then
+        canToggle = (Constants.AutoFishingLevel <= dataReplicator:GetExpect("Level"))
+    end
+
+    if canToggle then
+        local current = dataReplicator:GetExpect("AutoFishing")
+        updateAutoRemote:InvokeServer(not current)
+        return true
+    else
+        OrionLib:MakeNotification({
+            Name = "🎣 Auto Fishing",
+            Content = "Level " .. Constants.AutoFishingLevel .. " required to unlock!",
+            Image = "rbxassetid://7072717775",
+            Time = 3
+        })
+        return false
+    end
 end
 
--- Function untuk toggle Auto Fishing
-local function toggleAutoFishing()
-    local AutoButton = getAutoButton()
-    if AutoButton then
-        -- Simulate button click
-        local clickDetector = AutoButton:FindFirstChildWhichIsA("ClickDetector") or AutoButton:FindFirstChild("ClickDetector")
-        if clickDetector then
-            clickDetector:Click()
-        else
-            -- Alternative method: fire the click event directly
-            local bindableEvent = AutoButton:FindFirstChildWhichIsA("BindableEvent")
-            if bindableEvent then
-                bindableEvent:Fire()
-            else
-                -- Last resort: use remote function
-                local any_RemoteFunction_result1_upvr = require(ReplicatedStorage.Packages.Net):RemoteFunction("UpdateAutoFishingState")
-                local Replion_upvr = require(ReplicatedStorage.Packages.Replion)
-                local var11_upvw = Replion_upvr.Client:WaitReplion("Data")
-                
-                local currentState = var11_upvw:GetExpect("AutoFishing")
-                any_RemoteFunction_result1_upvr:InvokeServer(not currentState)
-            end
-        end
-        return true
+local function getAutoFishingStatus()
+    if dataReplicator then
+        return dataReplicator:GetExpect("AutoFishing")
     end
     return false
 end
 
--- Function untuk check Auto Fishing status
-local function getAutoFishingStatus()
-    local Replion_upvr = require(ReplicatedStorage.Packages.Replion)
-    local var11_upvw = Replion_upvr.Client:WaitReplion("Data")
-    return var11_upvw:GetExpect("AutoFishing")
-end
-
--- Function untuk start Auto Fishing loop
 local function startAutoFishingLoop()
     if AutoFishingLoop then
         AutoFishingLoop:Disconnect()
@@ -95,16 +187,16 @@ local function startAutoFishingLoop()
     end
     
     AutoFishingLoop = game:GetService("RunService").Heartbeat:Connect(function()
-        if AutoFishingEnabled then
-            -- Check if player has fishing rod equipped
-            local Replion_upvr = require(ReplicatedStorage.Packages.Replion)
-            local var11_upvw = Replion_upvr.Client:WaitReplion("Data")
-            local equippedType = var11_upvw:GetExpect("EquippedType")
+        if AutoFishingEnabled and dataReplicator then
+            local equippedType = dataReplicator:GetExpect("EquippedType")
+            local autoFishingState = getAutoFishingStatus()
             
             if equippedType == "Fishing Rods" then
-                local autoFishingState = getAutoFishingStatus()
                 if not autoFishingState then
-                    toggleAutoFishing()
+                    local success = toggleAutoFishing()
+                    if not success then
+                        AutoFishingEnabled = false
+                    end
                 end
             else
                 OrionLib:MakeNotification({
@@ -191,7 +283,6 @@ local function createMainUI()
         SaveConfig = true, 
         ConfigFolder = "AnggazyyConfig",
         IntroEnabled = false,
-        -- Ukuran window lebih kecil dan responsive
         Center = true
     })
 
@@ -254,27 +345,21 @@ local function createMainUI()
         Name = "X Coordinate",
         Default = "0",
         TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
+        Callback = function(Value) end
     })
 
     local yInput = TeleportTab:AddTextbox({
         Name = "Y Coordinate",
         Default = "0",
         TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
+        Callback = function(Value) end
     })
 
     local zInput = TeleportTab:AddTextbox({
         Name = "Z Coordinate",
         Default = "0",
         TextDisappear = false,
-        Callback = function(Value)
-            -- Value akan digunakan di teleport function
-        end
+        Callback = function(Value) end
     })
 
     -- Button untuk execute custom teleport
@@ -306,9 +391,9 @@ local function createMainUI()
     TeleportTab:AddSlider({
         Name = "🎯 WalkSpeed",
         Min = 16,
-        Max = 150, -- Max lebih rendah untuk balance
+        Max = 150,
         Default = 16,
-        Color = Color3.fromRGB(147, 112, 219), -- Ungu
+        Color = Color3.fromRGB(147, 112, 219),
         Increment = 1,
         ValueName = "speed",
         Callback = function(Value)
@@ -325,9 +410,9 @@ local function createMainUI()
     TeleportTab:AddSlider({
         Name = "🦘 JumpPower",
         Min = 50,
-        Max = 150, -- Max lebih rendah untuk balance
+        Max = 150,
         Default = 50,
-        Color = Color3.fromRGB(186, 85, 211), -- Ungu muda
+        Color = Color3.fromRGB(186, 85, 211),
         Increment = 1,
         ValueName = "power",
         Callback = function(Value)
@@ -394,18 +479,52 @@ local function createMainUI()
         Name = "🤖 Auto Fishing Features"
     })
 
-    -- Toggle untuk Auto Fishing
+    -- Initialize Auto Fishing System
+    AutoFishingTab:AddButton({
+        Name = "🔧 Initialize Auto Fishing",
+        Callback = function()
+            local success, errorMsg = pcall(function()
+                InitializeAutoFishing()
+            end)
+            
+            if success then
+                OrionLib:MakeNotification({
+                    Name = "🎣 Auto Fishing",
+                    Content = "Auto Fishing system initialized successfully!",
+                    Image = "rbxassetid://7072717775",
+                    Time = 3
+                })
+            else
+                OrionLib:MakeNotification({
+                    Name = "🎣 Auto Fishing Error",
+                    Content = "Failed to initialize: " .. tostring(errorMsg),
+                    Image = "rbxassetid://7072717775",
+                    Time = 5
+                })
+            end
+        end
+    })
+
+    -- Toggle untuk Auto Fishing Loop
     local autoFishToggle = AutoFishingTab:AddToggle({
-        Name = "🎣 Enable Auto Fishing",
+        Name = "🔄 Enable Auto Fishing Loop",
         Default = false,
         Callback = function(Value)
             AutoFishingEnabled = Value
             if Value then
-                -- Check if fishing rod is equipped
-                local Replion_upvr = require(ReplicatedStorage.Packages.Replion)
-                local var11_upvw = Replion_upvr.Client:WaitReplion("Data")
-                local equippedType = var11_upvw:GetExpect("EquippedType")
+                if not dataReplicator then
+                    OrionLib:MakeNotification({
+                        Name = "🎣 Auto Fishing",
+                        Content = "Please initialize Auto Fishing system first!",
+                        Image = "rbxassetid://7072717775",
+                        Time = 3
+                    })
+                    autoFishToggle:Set(false)
+                    return
+                end
                 
+                -- Check if fishing rod is equipped
+                local equippedType = dataReplicator:GetExpect("EquippedType")
                 if equippedType ~= "Fishing Rods" then
                     OrionLib:MakeNotification({
                         Name = "🎣 Auto Fishing",
@@ -422,7 +541,7 @@ local function createMainUI()
                 startAutoFishingLoop()
                 OrionLib:MakeNotification({
                     Name = "🎣 Auto Fishing",
-                    Content = "Auto Fishing activated!",
+                    Content = "Auto Fishing Loop activated!",
                     Image = "rbxassetid://7072717775",
                     Time = 3
                 })
@@ -433,7 +552,7 @@ local function createMainUI()
                 end
                 OrionLib:MakeNotification({
                     Name = "🎣 Auto Fishing",
-                    Content = "Auto Fishing deactivated!",
+                    Content = "Auto Fishing Loop deactivated!",
                     Image = "rbxassetid://7072717775",
                     Time = 3
                 })
@@ -443,20 +562,24 @@ local function createMainUI()
 
     -- Manual toggle button
     AutoFishingTab:AddButton({
-        Name = "🔄 Toggle Auto Fishing Button",
+        Name = "⚡ Toggle Auto Fishing Once",
         Callback = function()
-            local success = toggleAutoFishing()
-            if success then
+            if not dataReplicator then
                 OrionLib:MakeNotification({
                     Name = "🎣 Auto Fishing",
-                    Content = "Toggled Auto Fishing button!",
+                    Content = "Please initialize Auto Fishing system first!",
                     Image = "rbxassetid://7072717775",
                     Time = 3
                 })
-            else
+                return
+            end
+            
+            local success = toggleAutoFishing()
+            if success then
+                local currentStatus = getAutoFishingStatus()
                 OrionLib:MakeNotification({
                     Name = "🎣 Auto Fishing",
-                    Content = "Failed to find Auto Fishing button!",
+                    Content = "Auto Fishing toggled! Current: " .. (currentStatus and "ON" or "OFF"),
                     Image = "rbxassetid://7072717775",
                     Time = 3
                 })
@@ -469,11 +592,15 @@ local function createMainUI()
         Name = "📊 Check Auto Fishing Status",
         Callback = function()
             local status = getAutoFishingStatus()
+            local level = dataReplicator and dataReplicator:GetExpect("Level") or 0
+            local equippedType = dataReplicator and dataReplicator:GetExpect("EquippedType") or "None"
+            
             OrionLib:MakeNotification({
                 Name = "🎣 Auto Fishing Status",
-                Content = "Auto Fishing is: " .. (status and "ENABLED" or "DISABLED"),
+                Content = string.format("Status: %s\nLevel: %d\nEquipped: %s", 
+                    status and "ENABLED" or "DISABLED", level, equippedType),
                 Image = "rbxassetid://7072717775",
-                Time = 4
+                Time = 5
             })
         end
     })
@@ -483,10 +610,11 @@ local function createMainUI()
     })
 
     AutoFishingTab:AddParagraph("🎣 Auto Fishing Guide", 
-        "1. Equip a fishing rod first\n" ..
-        "2. Enable Auto Fishing toggle\n" ..
-        "3. Make sure you're near water\n" ..
-        "4. System will automatically fish for you!")
+        "1. Click 'Initialize Auto Fishing' first\n" ..
+        "2. Equip a fishing rod\n" .. 
+        "3. Enable Auto Fishing Loop toggle\n" ..
+        "4. System will automatically maintain auto fishing\n" ..
+        "5. Required Level: " .. tostring(Constants.AutoFishingLevel or "Unknown"))
 
     -- =============================================
     -- TAB 3: SETTINGS TAB
@@ -531,12 +659,16 @@ local function createMainUI()
         Name = "📝 Information"
     })
 
-    SettingsTab:AddParagraph("🎉 Anggazyy Hub", "✨ Version 2.0\n💜 Premium Teleport Hub\n🎣 Auto Fishing Feature\n🎯 Created by Anggazyy")
+    SettingsTab:AddParagraph("🎉 Anggazyy Hub", 
+        "✨ Version 2.0\n" ..
+        "💜 Premium Teleport Hub\n" ..
+        "🎣 Advanced Auto Fishing\n" ..
+        "🎯 Created by Anggazyy")
 
     -- Initialize Orion dengan theme ungu
     OrionLib:Init()
 
-    -- Apply purple theme to existing elements
+    -- Apply purple theme
     for _, tab in next, OrionLib:GetWindow().Tabs do
         for _, section in next, tab.Sections do
             section.Color = Color3.fromRGB(147, 112, 219)
@@ -566,7 +698,7 @@ local function createMainUI()
     OpenButton.Visible = true
 end
 
--- Loading Screen Function yang lebih kecil
+-- Loading Screen Function
 local function showLoadingScreen()
     local LoadingGui = Instance.new("ScreenGui")
     local Background = Instance.new("Frame")
@@ -585,15 +717,14 @@ local function showLoadingScreen()
     Background.Name = "Background"
     Background.Parent = LoadingGui
     Background.Size = UDim2.new(1, 0, 1, 0)
-    Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30) -- Background ungu gelap
+    Background.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
     Background.BackgroundTransparency = 0
     Background.ZIndex = 10
 
-    -- Ukuran lebih kecil untuk mobile
     LoadingFrame.Parent = Background
-    LoadingFrame.Size = UDim2.new(0, 280, 0, 100) -- Lebih kecil
+    LoadingFrame.Size = UDim2.new(0, 280, 0, 100)
     LoadingFrame.Position = UDim2.new(0.5, -140, 0.5, -50)
-    LoadingFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65) -- Ungu gelap
+    LoadingFrame.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     LoadingFrame.BorderSizePixel = 0
     LoadingFrame.ZIndex = 11
 
@@ -606,14 +737,14 @@ local function showLoadingScreen()
     LoadingLabel.BackgroundTransparency = 1
     LoadingLabel.Text = ""
     LoadingLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    LoadingLabel.TextSize = 16  -- Ukuran lebih kecil
+    LoadingLabel.TextSize = 16
     LoadingLabel.Font = Enum.Font.GothamBold
     LoadingLabel.ZIndex = 12
 
     LoadingBar.Parent = LoadingFrame
-    LoadingBar.Size = UDim2.new(0.8, 0, 0.15, 0) -- Lebih tipis
+    LoadingBar.Size = UDim2.new(0.8, 0, 0.15, 0)
     LoadingBar.Position = UDim2.new(0.1, 0, 0.75, 0)
-    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 35, 85) -- Ungu medium gelap
+    LoadingBar.BackgroundColor3 = Color3.fromRGB(60, 35, 85)
     LoadingBar.BorderSizePixel = 0
     LoadingBar.ZIndex = 12
 
@@ -622,7 +753,7 @@ local function showLoadingScreen()
 
     LoadingBarFill.Parent = LoadingBar
     LoadingBarFill.Size = UDim2.new(0, 0, 1, 0)
-    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(147, 112, 219) -- Ungu terang
+    LoadingBarFill.BackgroundColor3 = Color3.fromRGB(147, 112, 219)
     LoadingBarFill.BorderSizePixel = 0
     LoadingBarFill.ZIndex = 13
 
@@ -637,7 +768,6 @@ local function showLoadingScreen()
         for i = 1, #fullText do
             currentText = string.sub(fullText, 1, i)
             LoadingLabel.Text = currentText
-            -- Update loading bar
             LoadingBarFill.Size = UDim2.new((i / #fullText), 0, 1, 0)
             wait(speed)
         end
@@ -660,15 +790,13 @@ local function showLoadingScreen()
         
         LoadingGui:Destroy()
         
-        -- Show notification dulu sebelum buka UI
         OrionLib:MakeNotification({
             Name = "💜 Anggazyy Hub Ready!",
-            Content = "Click the purple icon to open menu!\n🎣 Auto Fishing feature included!",
+            Content = "Click the purple icon to open menu!\n🎣 Advanced Auto Fishing included!",
             Image = "rbxassetid://7072717775",
             Time = 4
         })
         
-        -- Tunggu sebentar lalu buat UI
         wait(1.5)
         createMainUI()
     end)
