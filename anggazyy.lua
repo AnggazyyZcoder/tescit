@@ -2,12 +2,12 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
--- Initialize Fluent
+-- Initialize Fluent dengan ukuran lebih kecil
 local Window = Fluent:CreateWindow({
     Title = "Anggazyy Hub " .. Fluent.Version,
     SubTitle = "by Anggazyy",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
+    TabWidth = 120,
+    Size = UDim2.fromOffset(400, 320), -- Diperkecil dari 580x460
     Acrylic = true,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.RightShift
@@ -32,7 +32,7 @@ local Tabs = {
 -- Auto Fish Section
 Tabs.Main:AddParagraph({
     Title = "Auto Fishing System",
-    Content = "Automatically fish for you when enabled."
+    Content = "Automatically fish for you."
 })
 
 local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
@@ -44,8 +44,8 @@ local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
             statusText = "Enabled ✅"
             Fluent:Notify({
                 Title = "🎣 Auto Fishing",
-                Content = "Auto Fishing has been enabled!",
-                Duration = 3
+                Content = "Auto Fishing enabled!",
+                Duration = 2
             })
             
             -- Enable auto fishing
@@ -59,8 +59,8 @@ local Toggle = Tabs.Main:AddToggle("AutoFishToggle", {
             statusText = "Disabled ❌"
             Fluent:Notify({
                 Title = "🎣 Auto Fishing",
-                Content = "Auto Fishing has been disabled!",
-                Duration = 3
+                Content = "Auto Fishing disabled!",
+                Duration = 2
             })
             
             -- Disable auto fishing
@@ -82,7 +82,7 @@ Options.StatusLabel = Tabs.Main:AddParagraph({
 
 Tabs.Main:AddButton({
     Title = "Toggle Auto Fishing",
-    Description = "Quick toggle for auto fishing",
+    Description = "Quick toggle",
     Callback = function()
         Toggle:Set(not autoFishEnabled)
     end
@@ -91,16 +91,14 @@ Tabs.Main:AddButton({
 -- Teleport Section
 Tabs.Teleport:AddParagraph({
     Title = "Teleport Locations",
-    Content = "Teleport to various locations in the game."
+    Content = "Teleport to various locations."
 })
 
 local teleportLocations = {
     {"Spawn Point", Vector3.new(0, 10, 0)},
     {"Mountain Top", Vector3.new(200, 150, 200)},
     {"Beach Side", Vector3.new(300, 15, -200)},
-    {"City Center", Vector3.new(100, 30, 100)},
-    {"Forest Area", Vector3.new(-150, 25, -100)},
-    {"Lake Side", Vector3.new(50, 20, 250)}
+    {"City Center", Vector3.new(100, 30, 100)}
 }
 
 for i, location in ipairs(teleportLocations) do
@@ -113,14 +111,14 @@ for i, location in ipairs(teleportLocations) do
                 char.HumanoidRootPart.CFrame = CFrame.new(location[2])
                 Fluent:Notify({
                     Title = "✨ Teleported!",
-                    Content = "Successfully teleported to " .. location[1],
-                    Duration = 3
+                    Content = "To " .. location[1],
+                    Duration = 2
                 })
             else
                 Fluent:Notify({
                     Title = "❌ Error",
                     Content = "Character not found!",
-                    Duration = 3
+                    Duration = 2
                 })
             end
         end
@@ -129,7 +127,7 @@ end
 
 -- Coordinate Display Toggle
 Tabs.Teleport:AddToggle("CoordToggle", {
-    Title = "Show Coordinates Display",
+    Title = "Show Coordinates",
     Default = false,
     Callback = function(Value)
         if Value then
@@ -137,7 +135,7 @@ Tabs.Teleport:AddToggle("CoordToggle", {
             Fluent:Notify({
                 Title = "📍 Coordinates",
                 Content = "Coordinate display enabled!",
-                Duration = 3
+                Duration = 2
             })
         else
             if coordinateDisplay then
@@ -147,21 +145,20 @@ Tabs.Teleport:AddToggle("CoordToggle", {
             Fluent:Notify({
                 Title = "📍 Coordinates",
                 Content = "Coordinate display disabled!",
-                Duration = 3
+                Duration = 2
             })
         end
     end
 })
 
--- Player Section
+-- Player Section (Simplified)
 Tabs.Player:AddParagraph({
     Title = "Player Settings",
-    Content = "Modify player properties and settings."
+    Content = "Modify player properties."
 })
 
 Tabs.Player:AddSlider("WalkSpeed", {
     Title = "Walk Speed",
-    Description = "Adjust player walk speed",
     Default = 16,
     Min = 16,
     Max = 100,
@@ -176,10 +173,9 @@ Tabs.Player:AddSlider("WalkSpeed", {
 
 Tabs.Player:AddSlider("JumpPower", {
     Title = "Jump Power",
-    Description = "Adjust player jump power",
     Default = 50,
     Min = 50,
-    Max = 200,
+    Max = 150,
     Rounding = 1,
     Callback = function(Value)
         local char = player.Character
@@ -191,13 +187,12 @@ Tabs.Player:AddSlider("JumpPower", {
 
 Tabs.Player:AddButton({
     Title = "Reset Character",
-    Description = "Reset your character",
     Callback = function()
         player.Character:BreakJoints()
         Fluent:Notify({
             Title = "🔄 Character Reset",
-            Content = "Your character has been reset!",
-            Duration = 3
+            Content = "Character has been reset!",
+            Duration = 2
         })
     end
 })
@@ -217,14 +212,14 @@ function CreateCoordinateDisplay()
     CoordGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     
     CoordFrame.Parent = CoordGui
-    CoordFrame.Size = UDim2.new(0, 160, 0, 40)
-    CoordFrame.Position = UDim2.new(0.5, -80, 0, 10)
+    CoordFrame.Size = UDim2.new(0, 140, 0, 35) -- Diperkecil
+    CoordFrame.Position = UDim2.new(0.5, -70, 0, 5) -- Diposisikan lebih atas
     CoordFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     CoordFrame.BackgroundTransparency = 0.3
     CoordFrame.BorderSizePixel = 0
     
     UICorner.Parent = CoordFrame
-    UICorner.CornerRadius = UDim.new(0, 8)
+    UICorner.CornerRadius = UDim.new(0, 6)
     
     UIStroke.Parent = CoordFrame
     UIStroke.Color = Color3.fromRGB(100, 100, 200)
@@ -235,7 +230,7 @@ function CreateCoordinateDisplay()
     CoordLabel.BackgroundTransparency = 1
     CoordLabel.Text = "X: 0 | Y: 0 | Z: 0"
     CoordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CoordLabel.TextSize = 12
+    CoordLabel.TextSize = 11 -- Diperkecil
     CoordLabel.Font = Enum.Font.GothamMedium
     CoordLabel.TextStrokeTransparency = 0.8
     
@@ -254,7 +249,7 @@ function CreateCoordinateDisplay()
     end)
 end
 
--- Add floating icon
+-- Floating Icon yang lebih kecil
 local function CreateFloatingIcon()
     local ScreenGui = Instance.new("ScreenGui")
     local OpenButton = Instance.new("ImageButton")
@@ -266,8 +261,8 @@ local function CreateFloatingIcon()
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     OpenButton.Parent = ScreenGui
-    OpenButton.Size = UDim2.new(0, 50, 0, 50)
-    OpenButton.Position = UDim2.new(0, 15, 0.5, -25)
+    OpenButton.Size = UDim2.new(0, 40, 0, 40) -- Diperkecil
+    OpenButton.Position = UDim2.new(0, 10, 0.5, -20) -- Diposisikan lebih kiri atas
     OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
     OpenButton.BackgroundTransparency = 0.1
     OpenButton.AutoButtonColor = false
@@ -286,7 +281,7 @@ local function CreateFloatingIcon()
     OpenButton.MouseButton1Click:Connect(function()
         Window:Dialog({
             Title = "Anggazyy Hub",
-            Content = "Welcome to Anggazyy Hub! Use RightShift to toggle the interface.",
+            Content = "Welcome! Use RightShift to toggle UI.",
             Buttons = {
                 {
                     Title = "OK",
@@ -301,41 +296,31 @@ local function CreateFloatingIcon()
     return OpenButton
 end
 
--- Loading notifications
+-- Loading notifications yang lebih cepat
 task.spawn(function()
     task.wait(1)
     Fluent:Notify({
         Title = "🔧 Initializing",
-        Content = "Loading 1/3 features...",
-        Duration = 3
+        Content = "Loading features...",
+        Duration = 1.5
     })
     
-    task.wait(2)
-    Fluent:Notify({
-        Title = "🔄 Fetching",
-        Content = "Fetching new version Anggazyy Hub...",
-        Duration = 3
-    })
-    
-    task.wait(2)
+    task.wait(1.5)
     Fluent:Notify({
         Title = "✅ Ready",
-        Content = "Anggazyy Hub v1.0-beta loaded successfully!",
-        Duration = 5
+        Content = "Anggazyy Hub loaded!",
+        Duration = 2
     })
 end)
 
 -- Create floating icon
 CreateFloatingIcon()
 
--- Add settings
+-- Select first tab
 Window:SelectTab(1)
 
-Fluent:Notify({
-    Title = "Anggazyy Hub",
-    Content = "Interface loaded! Use RightShift to toggle.",
-    Duration = 5
-})
+-- Add settings tab (simplified)
+Window:AddTab({ Title = "Settings", Icon = "settings" })
 
 -- SaveManager and InterfaceManager
 SaveManager:SetLibrary(Fluent)
@@ -344,12 +329,17 @@ InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 
-InterfaceManager:SetFolder("FluentScriptHub")
-SaveManager:SetFolder("FluentScriptHub/specific-game")
+InterfaceManager:SetFolder("FluentAnggazyy")
+SaveManager:SetFolder("FluentAnggazyy/specific-game")
 
+-- Build interface sections
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
-Window:AddTab({ Title = "Settings", Icon = "settings" })
-
 SaveManager:LoadAutoloadConfig()
+
+Fluent:Notify({
+    Title = "Anggazyy Hub",
+    Content = "UI Loaded! Size: 400x320",
+    Duration = 3
+})
