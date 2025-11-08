@@ -178,7 +178,10 @@ end
 -- Fishing System Implementation
 local function CreateFishingSystem()
     local deps = GetFishingDependencies()
-    if not deps.Net then return nil end
+    if not deps.Net then 
+        warn("Fishing System: Net module not found")
+        return nil 
+    end
     
     -- Variabel status internal
     local var17_upvw = { Data = { EquippedId = 123 } } -- SIMULASI: Harus diinisialisasi agar rod check lulus
@@ -200,8 +203,14 @@ local function CreateFishingSystem()
     local MinigameChangedSignal = deps.Signal.new()
 
     -- Fungsi placeholder
-    local function RefreshIdle() print("Simulasi: Menghentikan animasi memancing.") end
-    local function FishingRodEquipped(id) return id ~= nil end
+    local function RefreshIdle() 
+        print("Simulasi: Menghentikan animasi memancing.") 
+    end
+    
+    local function FishingRodEquipped(id) 
+        return id ~= nil 
+    end
+    
     local function GetItemDataFromEquippedItem(id) 
         if not id then return nil end
         return { Data = { Type = "Fishing Rods", Name = "FishingRodSound" } }
@@ -327,14 +336,21 @@ local function CreateFishingSystem()
     -- =================================================================
 
     local function SendFishingRequestToServer(power)
-        local throwPosition = deps.LocalPlayer.Character.HumanoidRootPart.CFrame.Position + Vector3.new(0, -1, 10)
+        local character = deps.LocalPlayer.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then
+            return false
+        end
+        
+        local throwPosition = character.HumanoidRootPart.CFrame.Position + Vector3.new(0, -1, 10)
         local castTime = workspace:GetServerTimeNow()
         
-        local success, responseData = CastFishingRod_Net:InvokeServer(
-            throwPosition.Y,
-            power,
-            castTime
-        )
+        local success, responseData = pcall(function()
+            return CastFishingRod_Net:InvokeServer(
+                throwPosition.Y,
+                power,
+                castTime
+            )
+        end)
 
         if success then
             print("[Server Response] Lemparan joran berhasil. Menunggu ikan menggigit...")
@@ -403,7 +419,9 @@ local function CreateFishingSystem()
         print(string.format("[Auto Charge] Dimulai. Menunggu %.2f detik...", chargeDelaySeconds))
         
         var35_upvw = workspace:GetServerTimeNow()
-        ChargeFishingRod_Net:InvokeServer(nil, nil, nil, var35_upvw)
+        pcall(function()
+            ChargeFishingRod_Net:InvokeServer(nil, nil, nil, var35_upvw)
+        end)
         
         -- Tambahkan fungsi cleanup charge ke trove
         chargeTrove:Add(function()
@@ -468,7 +486,7 @@ local function InitializeFishingSystem()
         Notify({Title = "Fishing System", Content = "Advanced fishing system initialized", Duration = 3})
         return fishingSystem
     else
-        Notify({Title = "Fishing System Error", Content = "Failed to initialize fishing system", Duration = 4})
+        Notify({Title = "Fishing System Error", Content = "Failed to initialize fishing system: " .. tostring(result), Duration = 4})
         return nil
     end
 end
@@ -506,6 +524,7 @@ local function StopFishingSystem()
     
     if fishingSystem then
         pcall(function() fishingSystem.Stop(false) end)
+        pcall(function() fishingSystem.Cleanup() end)
     end
     
     Notify({Title = "Fishing System", Content = "Advanced fishing system deactivated", Duration = 3})
@@ -1090,7 +1109,7 @@ end
 -- Main Window Creation
 local Window = Rayfield:CreateWindow({
     Name = "Anggazyy Hub - Fish It",
-    Icon = "fish",
+    Icon = 6034684454, -- Fish icon
     LoadingTitle = "Anggazyy Hub",
     LoadingSubtitle = "Premium Automation System",
     Theme = "Dark",
@@ -1109,6 +1128,13 @@ local InfoTab = Window:CreateTab("Information", "info")
 InfoTab:CreateParagraph({
     Title = "Anggazyy Hub - Fish It",
     Content = "Premium fishing automation with performance optimization"
+})
+
+InfoTab:CreateSection("System Features")
+
+InfoTab:CreateParagraph({
+    Title = "Features Included:",
+    Content = "• Advanced Auto Fishing\n• Fishing System (Charge + Minigame)\n• Fishing Radar Bypass\n• Diving Gear Bypass\n• Auto Sell System\n• Ultra Anti Lag\n• Position Management\n• Teleportation System"
 })
 
 -- ========== AUTO SYSTEM TAB ==========
@@ -1135,6 +1161,13 @@ AutoTab:CreateToggle({
             StopAutoFish()
         end
     end
+})
+
+AutoTab:CreateSection("Basic Auto Fishing")
+
+AutoTab:CreateParagraph({
+    Title = "Basic System",
+    Content = "Simple auto fishing using server remote functions"
 })
 
 -- ========== FISHING SYSTEM TAB ==========
@@ -1186,7 +1219,7 @@ FishingSystemTab:CreateSection("System Info")
 
 FishingSystemTab:CreateParagraph({
     Title = "System Features",
-    Content = "• Auto Charge (0.5s)\n• Auto Throw\n• Auto Minigame Click\n• Server Communication\n• Animation Control"
+    Content = "• Auto Charge (0.5s)\n• Auto Throw\n• Auto Minigame Click\n• Server Communication\n• Animation Control\n• Sound Management\n• UI Control"
 })
 
 -- ========== BYPASS TAB ==========
@@ -1472,9 +1505,16 @@ SettingsTab:CreateButton({
     end
 })
 
+SettingsTab:CreateSection("Configuration")
+
+SettingsTab:CreateParagraph({
+    Title = "Hub Configuration",
+    Content = "All settings are automatically saved and loaded"
+})
+
 -- Enhanced Visual Effects
 pcall(function()
-    local mainBG = Window.UIElements and Window.UIElements.MainFrame and Window.UIElements.MainFrame.Background
+    local mainBG = Window.MainFrame and Window.MainFrame.Background
     if mainBG then
         task.spawn(function()
             local colors = {
@@ -1499,7 +1539,7 @@ Rayfield:LoadConfiguration()
 -- Initial Notification
 Notify({
     Title = "Anggazyy Hub Ready", 
-    Content = "System initialized successfully",
+    Content = "System initialized successfully - Press K to toggle UI",
     Duration = 4
 })
 
