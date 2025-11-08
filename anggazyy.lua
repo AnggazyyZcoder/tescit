@@ -1,5 +1,5 @@
 --//////////////////////////////////////////////////////////////////////////////////
--- Anggazyy Hub - Fish It (FIXED PERFECT CAST)
+-- Anggazyy Hub - Fish It (FIXED PERFECT CAST WORKING)
 -- Rayfield UI + Lucide icons + Working Perfect Cast System
 -- Author: Anggazyy (refactor)
 --//////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +49,7 @@ local perfectCastLoop = nil
 local autoClickEnabled = false
 local autoClickLoop = nil
 local isFishingActive = false
+local fishingModule = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -140,55 +141,54 @@ local function SafeInvokeAutoFishing(state)
 end
 
 -- =============================================================================
--- PERFECT CAST SYSTEM - FIXED & WORKING
+-- PERFECT CAST SYSTEM - WORKING FIXED VERSION
 -- =============================================================================
 
--- Cari Fishing Module dengan cara yang benar
-local function GetFishingModule()
-    local success, module = pcall(function()
-        -- Coba berbagai lokasi module fishing
-        local possiblePaths = {
-            ReplicatedStorage.Modules.Fishing,
-            ReplicatedStorage.Controllers.FishingController,
-            ReplicatedStorage.Shared.Fishing,
-            ReplicatedStorage.Client.Fishing,
-            ReplicatedStorage:FindFirstChild("FishingModule"),
-            ReplicatedStorage:FindFirstChild("FishingController")
-        }
+-- Load Fishing Module dengan cara yang benar
+local function LoadFishingModule()
+    if fishingModule then return fishingModule end
+    
+    local success, result = pcall(function()
+        -- Load required modules untuk fishing system
+        local Replion = require(ReplicatedStorage.Packages.Replion)
+        local Net = require(ReplicatedStorage.Packages.Net)
         
-        for _, path in ipairs(possiblePaths) do
-            if path and path:IsA("ModuleScript") then
-                return require(path)
-            end
+        -- Tunggu sampai fishing module tersedia
+        local fishingScript = ReplicatedStorage.Modules:WaitForChild("Fishing", 10)
+        if fishingScript and fishingScript:IsA("ModuleScript") then
+            fishingModule = require(fishingScript)
+            print("✅ Fishing Module loaded successfully!")
+            return fishingModule
+        else
+            warn("❌ Fishing module not found in ReplicatedStorage.Modules")
+            return nil
         end
-        
-        -- Coba cari di PlayerScripts
-        local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
-        if playerScripts then
-            local fishingScript = playerScripts:FindFirstChild("Fishing")
-            if fishingScript and fishingScript:IsA("ModuleScript") then
-                return require(fishingScript)
-            end
-        end
-        
-        return nil
     end)
     
-    if success and module then
-        return module
+    if success and result then
+        return result
     else
+        warn("❌ Failed to load fishing module: " .. tostring(result))
         return nil
     end
 end
 
--- Cek apakah sedang fishing
+-- Cek apakah sedang fishing aktif
 local function IsFishingActive()
-    local fishingModule = GetFishingModule()
-    if fishingModule and fishingModule.GetCurrentGUID then
-        local guid = fishingModule:GetCurrentGUID()
-        return guid ~= nil
+    if not fishingModule then
+        fishingModule = LoadFishingModule()
+        if not fishingModule then return false end
     end
-    return false
+    
+    local success, result = pcall(function()
+        if fishingModule.GetCurrentGUID then
+            local guid = fishingModule:GetCurrentGUID()
+            return guid ~= nil
+        end
+        return false
+    end)
+    
+    return success and result or false
 end
 
 -- Auto Click System untuk Minigame
@@ -196,38 +196,24 @@ local function StartAutoClick()
     if autoClickEnabled then return end
     
     autoClickEnabled = true
-    Notify({Title = "Auto Click", Content = "Auto click minigame activated", Duration = 2})
+    print("🔄 Auto Click started")
     
     autoClickLoop = task.spawn(function()
         local clickCount = 0
         while autoClickEnabled and perfectCastEnabled do
             pcall(function()
-                local fishingModule = GetFishingModule()
-                if fishingModule then
-                    -- Coba berbagai method untuk click
-                    if fishingModule.RequestFishingMinigameClick then
-                        fishingModule:RequestFishingMinigameClick()
-                        clickCount = clickCount + 1
-                    elseif fishingModule.FishingMinigameClick then
-                        fishingModule:FishingMinigameClick()
-                        clickCount = clickCount + 1
-                    end
+                if fishingModule and fishingModule.RequestFishingMinigameClick then
+                    fishingModule:RequestFishingMinigameClick()
+                    clickCount = clickCount + 1
                     
-                    -- Cek jika sudah selesai (progress 100%)
-                    if fishingModule.GetCurrentGUID then
-                        local guid = fishingModule:GetCurrentGUID()
-                        if not guid then
-                            -- Fishing selesai, stop auto click
-                            StopAutoClick()
-                        end
+                    -- Cek jika fishing sudah selesai
+                    if not IsFishingActive() then
+                        StopAutoClick()
+                        print("✅ Fishing completed with " .. clickCount .. " clicks")
                     end
                 end
             end)
-            task.wait(0.12) -- Click setiap 0.12 detik
-        end
-        
-        if clickCount > 0 then
-            print("Auto Click: " .. clickCount .. " clicks performed")
+            task.wait(0.1) -- Click setiap 0.1 detik
         end
     end)
 end
@@ -236,6 +222,7 @@ local function StopAutoClick()
     if not autoClickEnabled then return end
     
     autoClickEnabled = false
+    print("🛑 Auto Click stopped")
     
     if autoClickLoop then
         task.cancel(autoClickLoop)
@@ -243,114 +230,112 @@ local function StopAutoClick()
     end
 end
 
--- Perfect Cast Fishing System - FIXED VERSION
+-- Perfect Cast Fishing System - WORKING VERSION
 local function StartPerfectCastFishing()
     if perfectCastEnabled then return end
     
+    -- Load fishing module pertama kali
+    fishingModule = LoadFishingModule()
+    if not fishingModule then
+        Notify({Title = "Perfect Cast Error", Content = "Fishing module not found!", Duration = 4})
+        return
+    end
+    
     perfectCastEnabled = true
-    Notify({Title = "Perfect Cast", Content = "Perfect cast fishing activated", Duration = 3})
+    Notify({Title = "Perfect Cast", Content = "Perfect cast fishing activated!", Duration = 3})
+    print("🎣 Perfect Cast Fishing STARTED")
     
     perfectCastLoop = task.spawn(function()
         local attemptCount = 0
+        
         while perfectCastEnabled do
-            pcall(function()
-                attemptCount = attemptCount + 1
-                print("Perfect Cast Attempt: " .. attemptCount)
-                
-                local fishingModule = GetFishingModule()
-                if not fishingModule then
-                    warn("Fishing module not found!")
-                    task.wait(5)
-                    return
+            attemptCount = attemptCount + 1
+            print("🎯 Fishing Attempt: " .. attemptCount)
+            
+            -- Cek cooldown
+            if fishingModule.OnCooldown and fishingModule:OnCooldown() then
+                print("⏳ On cooldown, waiting...")
+                task.wait(3)
+                continue
+            end
+            
+            -- Cek inventory space
+            local Constants = require(ReplicatedStorage.Shared.Constants)
+            local Replion = require(ReplicatedStorage.Packages.Replion)
+            local Data = Replion.Client:WaitReplion("Data")
+            
+            if Data and Constants.MaxInventorySize <= Constants:CountInventorySize(Data) then
+                if fishingModule.NoInventorySpace then
+                    fishingModule:NoInventorySpace()
                 end
+                task.wait(2)
+                continue
+            end
+            
+            -- Cek fishing rod equipped
+            local equippedId = Data:Get("EquippedId")
+            if not equippedId or equippedId == "" then
+                print("❌ No fishing rod equipped!")
+                task.wait(3)
+                continue
+            end
+            
+            -- Cek apakah sedang tidak fishing
+            if not IsFishingActive() then
+                print("🎣 Starting new fishing cycle...")
                 
-                -- Cek cooldown dulu
-                if fishingModule.OnCooldown and fishingModule:OnCooldown() then
-                    print("On cooldown, waiting...")
-                    task.wait(3)
-                    return
-                end
+                -- Gunakan RequestChargeFishingRod untuk mulai fishing
+                local screenCenter = Vector2.new(
+                    workspace.CurrentCamera.ViewportSize.X / 2,
+                    workspace.CurrentCamera.ViewportSize.Y / 2
+                )
                 
-                -- Cek apakah sudah ada fishing rod equipped
-                local Replion = require(ReplicatedStorage.Packages.Replion)
-                local Data = Replion.Client:WaitReplion("Data")
-                if Data then
-                    local equippedId = Data:Get("EquippedId")
-                    if not equippedId or equippedId == "" then
-                        warn("No fishing rod equipped!")
-                        task.wait(3)
-                        return
-                    end
-                end
-                
-                -- Cek apakah sedang tidak fishing
-                if not IsFishingActive() then
-                    print("Starting new fishing cycle...")
+                if fishingModule.RequestChargeFishingRod then
+                    fishingModule:RequestChargeFishingRod(screenCenter)
+                    print("✅ RequestChargeFishingRod called")
                     
-                    -- Method 1: Gunakan RequestChargeFishingRod
-                    if fishingModule.RequestChargeFishingRod then
-                        local screenCenter = Vector2.new(
-                            workspace.CurrentCamera.ViewportSize.X / 2,
-                            workspace.CurrentCamera.ViewportSize.Y / 2
-                        )
-                        fishingModule:RequestChargeFishingRod(screenCenter)
-                        print("RequestChargeFishingRod called")
-                    
-                    -- Method 2: Gunakan SendFishingRequestToServer langsung  
-                    elseif fishingModule.SendFishingRequestToServer then
-                        local screenCenter = Vector2.new(
-                            workspace.CurrentCamera.ViewportSize.X / 2,
-                            workspace.CurrentCamera.ViewportSize.Y / 2
-                        )
-                        local success, result = fishingModule:SendFishingRequestToServer(screenCenter, 1.0)
-                        print("SendFishingRequestToServer: " .. tostring(success))
-                    
-                    -- Method 3: Coba panggil remote function langsung
-                    else
-                        local Net = require(ReplicatedStorage.Packages.Net)
-                        local fishingRemote = Net:RemoteFunction("RequestFishingMinigameStarted")
-                        if fishingRemote then
-                            fishingRemote:InvokeServer()
-                            print("Direct remote call made")
+                    -- Tunggu untuk minigame mulai
+                    local minigameWaitTime = 0
+                    while minigameWaitTime < 5 do -- Max 5 detik tunggu minigame
+                        task.wait(0.5)
+                        minigameWaitTime = minigameWaitTime + 0.5
+                        
+                        if IsFishingActive() then
+                            print("🎮 Minigame detected, starting auto click...")
+                            StartAutoClick()
+                            break
                         end
                     end
                     
-                    -- Tunggu sebentar untuk minigame mulai
-                    task.wait(2)
-                    
-                    -- Cek jika minigame sudah aktif, mulai auto click
-                    if IsFishingActive() then
-                        print("Minigame detected, starting auto click...")
-                        StartAutoClick()
-                        
-                        -- Tunggu sampai fishing selesai
-                        local waitTime = 0
-                        while IsFishingActive() and waitTime < 30 do -- Max 30 detik
-                            task.wait(1)
-                            waitTime = waitTime + 1
-                        end
-                        
-                        StopAutoClick()
-                        print("Fishing cycle completed")
-                    else
-                        print("No minigame detected, continuing...")
+                    -- Tunggu sampai fishing selesai
+                    local fishingWaitTime = 0
+                    while IsFishingActive() and fishingWaitTime < 30 do -- Max 30 detik
+                        task.wait(1)
+                        fishingWaitTime = fishingWaitTime + 1
                     end
+                    
+                    StopAutoClick()
+                    print("✅ Fishing cycle completed")
+                    
                 else
-                    print("Already fishing, waiting...")
+                    print("❌ RequestChargeFishingRod not available")
                 end
-                
-                -- Cooldown antara fishing attempts
-                local cooldown = math.random(3, 6)
-                task.wait(cooldown)
-                
-            end)
+            else
+                print("⚠️ Already fishing, waiting...")
+            end
+            
+            -- Cooldown antara attempts
+            local cooldown = math.random(2, 4)
+            task.wait(cooldown)
             
             -- Safety break
-            if attemptCount > 100 then
-                warn("Perfect Cast safety break - too many attempts")
+            if attemptCount > 50 then
+                print("🛑 Safety break - too many attempts")
                 break
             end
         end
+        
+        print("🛑 Perfect Cast Fishing STOPPED")
     end)
 end
 
@@ -366,6 +351,34 @@ local function StopPerfectCastFishing()
     end
     
     Notify({Title = "Perfect Cast", Content = "Perfect cast fishing stopped", Duration = 3})
+    print("🛑 Perfect Cast Fishing STOPPED")
+end
+
+-- Test Function untuk debugging
+local function TestFishingSystem()
+    fishingModule = LoadFishingModule()
+    if not fishingModule then
+        Notify({Title = "Test Failed", Content = "Fishing module not found!", Duration = 4})
+        return
+    end
+    
+    local methods = {}
+    for methodName, method in pairs(fishingModule) do
+        if type(method) == "function" then
+            table.insert(methods, methodName)
+        end
+    end
+    
+    Notify({
+        Title = "Fishing Module Test", 
+        Content = "Module loaded! Methods: " .. table.concat(methods, ", "),
+        Duration = 5
+    })
+    
+    print("🔍 Fishing Module Methods:")
+    for _, method in ipairs(methods) do
+        print(" - " .. method)
+    end
 end
 
 -- Auto Fishing System (Original)
@@ -1020,20 +1033,7 @@ FishingTab:CreateToggle({
 
 FishingTab:CreateButton({
     Name = "Test Fishing Module",
-    Callback = function()
-        local fishingModule = GetFishingModule()
-        if fishingModule then
-            Notify({Title = "Test", Content = "Fishing module found!", Duration = 3})
-            print("Fishing Module Methods:")
-            for methodName, method in pairs(fishingModule) do
-                if type(method) == "function" then
-                    print(" - " .. methodName)
-                end
-            end
-        else
-            Notify({Title = "Test", Content = "Fishing module NOT found!", Duration = 3})
-        end
-    end
+    Callback = TestFishingSystem
 })
 
 FishingTab:CreateParagraph({
