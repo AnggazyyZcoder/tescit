@@ -1,5 +1,3 @@
-
-
 --//////////////////////////////////////////////////////////////////////////////////
 -- Anggazyy Hub - Fish It (FINAL)
 -- Rayfield UI + Lucide icons
@@ -230,7 +228,7 @@ local function EnableAntiLag()
                 if obj:FindFirstChildOfClass("Decal") then
                     obj:FindFirstChildOfClass("Decal"):Destroy()
                 end
-                 = Enum.Material.SmoothPlastic
+                obj.Material = Enum.Material.SmoothPlastic
                 obj.BrickColor = BrickColor.new("White")
                 obj.Reflectance = 0
             elseif obj:IsA("ParticleEmitter") then
