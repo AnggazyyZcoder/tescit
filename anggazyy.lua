@@ -1,5 +1,5 @@
 --//////////////////////////////////////////////////////////////////////////////////
--- Anggazyy Hub - Fish It (FINAL)
+-- Anggazyy Hub - Fish It (FINAL) + Merchant System
 -- Rayfield UI + Lucide icons
 -- Clean, modern, professional design
 -- Author: Anggazyy (refactor)
@@ -40,6 +40,14 @@ local divingGearEnabled = false
 local autoSellEnabled = false
 local autoSellThreshold = 3
 local autoSellLoop = nil
+
+-- Merchant System Variables
+local merchantItems = {}
+local selectedMerchantItem = nil
+local selectedItemPrice = 0
+local autoBuyEnabled = false
+local autoBuyLoop = nil
+local itemPriceLabel = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -88,6 +96,188 @@ local function Notify(opts)
         })
     end)
 end
+
+-- =============================================================================
+-- MERCHANT SYSTEM - SHOP ITEMS & AUTO BUY
+-- =============================================================================
+
+-- 📦 Ambil daftar item dari shop dan tampilkan
+function GetShopItems()
+    local shopItems = {} -- buat tabel kosong untuk daftar item
+
+    -- Cari folder ShopItems di berbagai lokasi yang mungkin
+    local shopFolder = ReplicatedStorage:FindFirstChild("ShopItems")
+    if not shopFolder then
+        shopFolder = ReplicatedStorage:FindFirstChild("Shop") 
+        or ReplicatedStorage:FindFirstChild("Items")
+        or ReplicatedStorage:FindFirstChild("Products")
+    end
+
+    if shopFolder then
+        -- Loop semua item di dalam shop
+        for _, item in pairs(shopFolder:GetChildren()) do
+            local price = 0
+            -- Cari harga di berbagai kemungkinan property
+            if item:FindFirstChild("Price") then
+                price = item.Price.Value
+            elseif item:FindFirstChild("Cost") then
+                price = item.Cost.Value
+            elseif item:FindFirstChild("Value") then
+                price = item.Value.Value
+            end
+            
+            table.insert(shopItems, {
+                Name = item.Name,
+                Price = price,
+                DisplayName = item.Name .. " - $" .. price
+            })
+        end
+    else
+        -- Fallback items jika shop tidak ditemukan
+        shopItems = {
+            {Name = "Fishing Rod", Price = 100, DisplayName = "Fishing Rod - $100"},
+            {Name = "Advanced Rod", Price = 500, DisplayName = "Advanced Rod - $500"},
+            {Name = "Fishing Bait", Price = 25, DisplayName = "Fishing Bait - $25"},
+            {Name = "Golden Hook", Price = 1000, DisplayName = "Golden Hook - $1000"},
+            {Name = "Diving Suit", Price = 750, DisplayName = "Diving Suit - $750"}
+        }
+    end
+
+    return shopItems -- return list item dengan nama dan harga
+end
+
+-- 💸 Fungsi beli item (dipanggil saat toggle aktif)
+function BuyItem(itemName)
+    -- Cari event pembelian di berbagai lokasi yang mungkin
+    local RemotePurchase = ReplicatedStorage:FindFirstChild("InitiatePurchase") 
+        or ReplicatedStorage:FindFirstChild("PurchaseItem")
+        or ReplicatedStorage:FindFirstChild("BuyItem")
+    
+    if not RemotePurchase then
+        -- Cari di folder RemoteFunctions/RemoteEvents
+        local remoteFolder = ReplicatedStorage:FindFirstChild("RemoteEvents") 
+            or ReplicatedStorage:FindFirstChild("RemoteFunctions")
+        if remoteFolder then
+            RemotePurchase = remoteFolder:FindFirstChild("InitiatePurchase") 
+                or remoteFolder:FindFirstChild("PurchaseItem")
+                or remoteFolder:FindFirstChild("BuyItem")
+        end
+    end
+
+    if RemotePurchase then
+        -- Kirim event pembelian ke server
+        if RemotePurchase:IsA("RemoteEvent") then
+            RemotePurchase:FireServer(itemName)
+        elseif RemotePurchase:IsA("RemoteFunction") then
+            RemotePurchase:InvokeServer(itemName)
+        end
+        print("[BUY ITEM] Membeli item:", itemName)
+        return true
+    else
+        warn("[BUY ITEM] Remote purchase tidak ditemukan!")
+        return false
+    end
+end
+
+-- 🔁 Fungsi Auto Buy Toggle
+function ToggleAutoBuy(state, selected)
+    autoBuyEnabled = state
+    selectedMerchantItem = selected
+
+    -- Hentikan loop sebelumnya jika ada
+    if autoBuyLoop then
+        task.cancel(autoBuyLoop)
+        autoBuyLoop = nil
+    end
+
+    if autoBuyEnabled and selectedMerchantItem then
+        autoBuyLoop = task.spawn(function()
+            while autoBuyEnabled do
+                local success = BuyItem(selectedMerchantItem)
+                if success then
+                    Notify({
+                        Title = "Auto Buy", 
+                        Content = "Membeli: " .. selectedMerchantItem,
+                        Duration = 2
+                    })
+                else
+                    Notify({
+                        Title = "Auto Buy Error", 
+                        Content = "Gagal membeli item",
+                        Duration = 3
+                    })
+                end
+                task.wait(5) -- jeda 5 detik antar pembelian
+            end
+        end)
+        Notify({
+            Title = "Auto Buy", 
+            Content = "AUTO BUY AKTIF untuk: " .. selectedMerchantItem,
+            Duration = 3
+        })
+    else
+        Notify({
+            Title = "Auto Buy", 
+            Content = "AUTO BUY NONAKTIF",
+            Duration = 2
+        })
+    end
+end
+
+-- Fungsi untuk update harga item yang dipilih
+function UpdateSelectedItemPrice(itemName)
+    for _, item in pairs(merchantItems) do
+        if item.Name == itemName then
+            selectedItemPrice = item.Price
+            selectedMerchantItem = itemName
+            
+            -- Update label harga jika ada
+            if itemPriceLabel then
+                pcall(function()
+                    itemPriceLabel:Set("Harga: $" .. item.Price)
+                end)
+            end
+            
+            return item.Price
+        end
+    end
+    return 0
+end
+
+-- Fungsi untuk membeli item sekali
+function BuySelectedItem()
+    if not selectedMerchantItem then
+        Notify({
+            Title = "Merchant Error",
+            Content = "Pilih item terlebih dahulu!",
+            Duration = 3
+        })
+        return false
+    end
+    
+    local success = BuyItem(selectedMerchantItem)
+    if success then
+        Notify({
+            Title = "Merchant",
+            Content = "Berhasil membeli: " .. selectedMerchantItem,
+            Duration = 3
+        })
+        return true
+    else
+        Notify({
+            Title = "Merchant Error",
+            Content = "Gagal membeli item!",
+            Duration = 3
+        })
+        return false
+    end
+end
+
+-- Load merchant items saat startup
+task.spawn(function()
+    merchantItems = GetShopItems()
+    print("[MERCHANT] Loaded " .. #merchantItems .. " items")
+end)
 
 -- Network Communication
 local function GetAutoFishRemote()
@@ -756,6 +946,156 @@ AutoTab:CreateToggle({
     end
 })
 
+-- ========== MERCHANT TAB ==========
+local MerchantTab = Window:CreateTab("Merchant", "shopping-cart")
+
+MerchantTab:CreateParagraph({
+    Title = "Merchant System",
+    Content = "Buy items from shop with auto-buy feature"
+})
+
+-- Load merchant items untuk dropdown
+local dropdownOptions = {}
+task.spawn(function()
+    merchantItems = GetShopItems()
+    for _, item in pairs(merchantItems) do
+        table.insert(dropdownOptions, item.DisplayName)
+    end
+    
+    -- Update dropdown jika sudah dibuat
+    if MerchantTab then
+        -- We'll handle this in the dropdown creation
+    end
+end)
+
+-- Item Selection Section
+MerchantTab:CreateSection("Item Selection")
+
+local itemDropdown = MerchantTab:CreateDropdown({
+    Name = "Select Item to Buy",
+    Options = {"Loading items..."},
+    CurrentOption = "Loading items...",
+    Flag = "MerchantItemSelect",
+    Callback = function(selected)
+        -- Extract item name from display name
+        local itemName = selected:gsub(" %- %$%d+", "") -- Remove price part
+        local price = UpdateSelectedItemPrice(itemName)
+        
+        Notify({
+            Title = "Item Selected",
+            Content = itemName .. " - $" .. price,
+            Duration = 3
+        })
+    end
+})
+
+-- Update dropdown options setelah items loaded
+task.spawn(function()
+    task.wait(2) -- Tunggu sebentar untuk load items
+    merchantItems = GetShopItems()
+    local options = {}
+    for _, item in pairs(merchantItems) do
+        table.insert(options, item.DisplayName)
+    end
+    
+    if #options > 0 then
+        pcall(function()
+            itemDropdown:UpdateOptions(options)
+            itemDropdown:Set(options[1])
+            -- Set initial selected item
+            local initialItem = options[1]:gsub(" %- %$%d+", "")
+            UpdateSelectedItemPrice(initialItem)
+        end)
+    end
+end)
+
+-- Price Display
+itemPriceLabel = MerchantTab:CreateParagraph({
+    Title = "Selected Item Price:",
+    Content = "Harga: $0"
+})
+
+-- Purchase Section
+MerchantTab:CreateSection("Purchase Actions")
+
+MerchantTab:CreateButton({
+    Name = "🛒 BUY SELECTED ITEM",
+    Callback = function()
+        BuySelectedItem()
+    end
+})
+
+MerchantTab:CreateToggle({
+    Name = "Auto Buy Selected Item",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(state)
+        ToggleAutoBuy(state, selectedMerchantItem)
+    end
+})
+
+MerchantTab:CreateSlider({
+    Name = "Auto Buy Delay",
+    Range = {1, 30},
+    Increment = 1,
+    CurrentValue = 5,
+    Suffix = "seconds",
+    Flag = "AutoBuyDelay",
+    Callback = function(value)
+        Notify({
+            Title = "Auto Buy",
+            Content = "Delay set to " .. value .. " seconds",
+            Duration = 2
+        })
+    end
+})
+
+-- Quick Actions Section
+MerchantTab:CreateSection("Quick Actions")
+
+MerchantTab:CreateButton({
+    Name = "Refresh Item List",
+    Callback = function()
+        merchantItems = GetShopItems()
+        local options = {}
+        for _, item in pairs(merchantItems) do
+            table.insert(options, item.DisplayName)
+        end
+        
+        if #options > 0 then
+            pcall(function()
+                itemDropdown:UpdateOptions(options)
+                itemDropdown:Set(options[1])
+                local initialItem = options[1]:gsub(" %- %$%d+", "")
+                UpdateSelectedItemPrice(initialItem)
+            end)
+            Notify({
+                Title = "Merchant",
+                Content = "Item list refreshed! " .. #options .. " items loaded",
+                Duration = 3
+            })
+        else
+            Notify({
+                Title = "Merchant Error",
+                Content = "No items found!",
+                Duration = 3
+            })
+        end
+    end
+})
+
+MerchantTab:CreateButton({
+    Name = "Stop Auto Buy",
+    Callback = function()
+        ToggleAutoBuy(false, nil)
+        Notify({
+            Title = "Auto Buy",
+            Content = "Auto buy stopped",
+            Duration = 2
+        })
+    end
+})
+
 -- ========== BYPASS TAB ==========
 local BypassTab = Window:CreateTab("Bypass", "radar")
 
@@ -1014,6 +1354,7 @@ SettingsTab:CreateButton({
         StopFishingRadar()
         StopDivingGear()
         StopAutoSell()
+        ToggleAutoBuy(false, nil) -- Stop auto buy
         DestroyCoordinateDisplay()
         Rayfield:Destroy()
         Notify({Title = "Unload", Content = "Hub unloaded successfully", Duration = 2})
@@ -1065,7 +1406,7 @@ Rayfield:LoadConfiguration()
 -- Initial Notification
 Notify({
     Title = "Anggazyy Hub Ready", 
-    Content = "System initialized successfully",
+    Content = "System initialized successfully with Merchant features",
     Duration = 4
 })
 
