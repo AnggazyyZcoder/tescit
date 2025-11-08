@@ -34,6 +34,9 @@ local lastSavedPosition = nil
 local lockPositionLoop = nil
 local originalGraphicsSettings = {}
 
+-- Bypass Variables
+local fishingRadarEnabled = false
+
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
 local COLOR_DISABLED = Color3.fromRGB(244, 67, 54) -- Red
@@ -356,6 +359,80 @@ local function StopLockPosition()
     Notify({Title = "Position Lock", Content = "Player position unlocked", Duration = 2})
 end
 
+-- =============================================================================
+-- BYPASS SYSTEM - FISHING RADAR
+-- =============================================================================
+
+-- Fishing Radar System
+local function ToggleFishingRadar()
+    local success, result = pcall(function()
+        -- Load required modules
+        local Replion = require(ReplicatedStorage.Packages.Replion)
+        local Net = require(ReplicatedStorage.Packages.Net)
+        local UpdateFishingRadar = Net:RemoteFunction("UpdateFishingRadar")
+        
+        -- Get player data
+        local Data = Replion.Client:WaitReplion("Data")
+        if not Data then
+            return false, "Data Replion tidak ditemukan!"
+        end
+
+        -- Get current radar state
+        local currentState = Data:Get("RegionsVisible")
+        local desiredState = not currentState
+
+        -- Invoke server to update radar
+        local invokeSuccess = UpdateFishingRadar:InvokeServer(desiredState)
+        
+        if invokeSuccess then
+            fishingRadarEnabled = desiredState
+            return true, "Radar: " .. (desiredState and "ENABLED" or "DISABLED")
+        else
+            return false, "Failed to update radar"
+        end
+    end)
+    
+    if success then
+        return true, result
+    else
+        return false, "Error: " .. tostring(result)
+    end
+end
+
+local function StartFishingRadar()
+    if fishingRadarEnabled then return end
+    
+    local success, message = ToggleFishingRadar()
+    if success then
+        fishingRadarEnabled = true
+        Notify({Title = "Fishing Radar", Content = message, Duration = 3})
+    else
+        Notify({Title = "Radar Error", Content = message, Duration = 4})
+    end
+end
+
+local function StopFishingRadar()
+    if not fishingRadarEnabled then return end
+    
+    local success, message = ToggleFishingRadar()
+    if success then
+        fishingRadarEnabled = false
+        Notify({Title = "Fishing Radar", Content = message, Duration = 3})
+    else
+        Notify({Title = "Radar Error", Content = message, Duration = 4})
+    end
+end
+
+-- Auto Radar Toggle with safety
+local function SafeToggleRadar()
+    local success, message = ToggleFishingRadar()
+    if success then
+        Notify({Title = "Fishing Radar", Content = message, Duration = 3})
+    else
+        Notify({Title = "Radar Error", Content = message, Duration = 4})
+    end
+end
+
 -- Coordinate Display System
 local function CreateCoordinateDisplay()
     if coordinateGui and coordinateGui.Parent then coordinateGui:Destroy() end
@@ -463,6 +540,59 @@ AutoTab:CreateToggle({
         else
             StopAutoFish()
         end
+    end
+})
+
+-- ========== BYPASS TAB ==========
+local BypassTab = Window:CreateTab("Bypass", "radar")
+
+BypassTab:CreateParagraph({
+    Title = "Game Bypass Features",
+    Content = "Advanced features to enhance gameplay"
+})
+
+-- Fishing Radar Section
+BypassTab:CreateSection("Fishing Radar")
+
+BypassTab:CreateToggle({
+    Name = "Fishing Radar",
+    CurrentValue = false,
+    Flag = "FishingRadarToggle",
+    Callback = function(state)
+        if state then
+            StartFishingRadar()
+        else
+            StopFishingRadar()
+        end
+    end
+})
+
+BypassTab:CreateButton({
+    Name = "Toggle Radar",
+    Callback = SafeToggleRadar
+})
+
+BypassTab:CreateParagraph({
+    Title = "Radar Info",
+    Content = "Shows fishing regions on minimap"
+})
+
+-- Quick Actions Section
+BypassTab:CreateSection("Quick Actions")
+
+BypassTab:CreateButton({
+    Name = "Enable All Bypass",
+    Callback = function()
+        StartFishingRadar()
+        Notify({Title = "Bypass", Content = "All bypass features enabled", Duration = 3})
+    end
+})
+
+BypassTab:CreateButton({
+    Name = "Disable All Bypass",
+    Callback = function()
+        StopFishingRadar()
+        Notify({Title = "Bypass", Content = "All bypass features disabled", Duration = 3})
     end
 })
 
@@ -615,6 +745,7 @@ SettingsTab:CreateButton({
         StopAutoFish()
         StopLockPosition()
         DisableAntiLag()
+        StopFishingRadar()
         DestroyCoordinateDisplay()
         Rayfield:Destroy()
         Notify({Title = "Unload", Content = "Hub unloaded successfully", Duration = 2})
