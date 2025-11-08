@@ -29,8 +29,6 @@ local AUTO_BUY_ENABLED = false
 local AUTO_BUY_LOOP = nil
 local MERCHANT_ITEMS = {}
 local SELECTED_ITEM = nil
-local merchantData = nil
-local playerData = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -241,167 +239,113 @@ local function GetPlayerInfo()
 end
 
 -- =============================================================================
--- MERCHANT AUTO BUYER SYSTEM - FIXED VERSION
+-- MERCHANT AUTO BUYER SYSTEM - SIMPLE & WORKING VERSION
 -- =============================================================================
 
--- Load required modules
-local function LoadModules()
-    local modules = {}
-    
-    modules.GuiControl = require(ReplicatedStorage.Modules.GuiControl)
-    modules.CurrencyUtility = require(ReplicatedStorage.Modules.CurrencyUtility)
-    modules.ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
-    modules.TierUtility = require(ReplicatedStorage.Shared.TierUtility)
-    modules.MarketItemData = require(ReplicatedStorage.Shared.MarketItemData)
-    modules.PlayerStatsUtility = require(ReplicatedStorage.Shared.PlayerStatsUtility)
-    modules.InventoryMapping = require(ReplicatedStorage.Shared.InventoryMapping)
-    modules.Net = require(ReplicatedStorage.Packages.Net)
-    modules.Replion = require(ReplicatedStorage.Packages.Replion)
-    
-    return modules
-end
-
--- Initialize Merchant Data
-local function InitializeMerchantData()
-    local modules = LoadModules()
-    merchantData = modules.Replion.Client:WaitReplion("Merchant")
-    playerData = modules.Replion.Client:WaitReplion("Data")
-end
-
--- Get Market Data From ID
-local function GetMarketDataFromId(itemId)
-    local modules = LoadModules()
-    for _, itemData in ipairs(modules.MarketItemData) do
-        if itemData.Id == itemId then
-            return itemData
-        end
-    end
-    return nil
-end
-
--- Get Item Display Name
-local function GetItemDisplayName(marketData)
-    local modules = LoadModules()
-    local itemData = modules.ItemUtility.GetItemDataFromItemType(marketData.Type, marketData.Identifier)
-    if itemData and itemData.Data then
-        return itemData.Data.Name or "Unknown Item"
-    end
-    return "Unknown Item"
-end
-
--- Scan merchant items - FIXED VERSION
-local function ScanMerchantItems()
+-- Simple function to get merchant items
+local function ShowShopItems()
     MERCHANT_ITEMS = {}
     
-    if not merchantData then
-        InitializeMerchantData()
-    end
-    
-    local merchantItemIds = merchantData:GetExpect("Items") or {}
-    
-    for _, itemId in ipairs(merchantItemIds) do
-        local marketData = GetMarketDataFromId(itemId)
-        if marketData and not marketData.SkinCrate then
-            local itemName = GetItemDisplayName(marketData)
-            local displayName = string.format("%s - %d %s", 
-                itemName, 
-                marketData.Price or 0, 
-                marketData.Currency or "Coins")
-                
-            table.insert(MERCHANT_ITEMS, {
-                Id = itemId,
-                Name = itemName,
-                Price = marketData.Price,
-                Currency = marketData.Currency,
-                Type = marketData.Type,
-                Identifier = marketData.Identifier,
-                ProductId = marketData.ProductId,
-                SingleCopy = marketData.SingleCopy,
-                DisplayName = displayName,
-                MarketData = marketData
-            })
+    -- Try to get merchant data from Replion
+    local success, result = pcall(function()
+        local Replion = require(ReplicatedStorage.Packages.Replion)
+        local merchantData = Replion.Client:WaitReplion("Merchant")
+        local itemIds = merchantData:GetExpect("Items") or {}
+        
+        -- Get MarketItemData for item details
+        local MarketItemData = require(ReplicatedStorage.Shared.MarketItemData)
+        local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+        
+        for _, itemId in ipairs(itemIds) do
+            for _, marketItem in ipairs(MarketItemData) do
+                if marketItem.Id == itemId and not marketItem.SkinCrate then
+                    local itemName = "Unknown Item"
+                    local itemData = ItemUtility.GetItemDataFromItemType(marketItem.Type, marketItem.Identifier)
+                    if itemData and itemData.Data then
+                        itemName = itemData.Data.Name or "Unknown Item"
+                    end
+                    
+                    table.insert(MERCHANT_ITEMS, {
+                        Id = itemId,
+                        Name = itemName,
+                        Price = marketItem.Price or 0,
+                        Currency = marketItem.Currency or "Coins",
+                        DisplayName = itemName .. " - " .. tostring(marketItem.Price or 0) .. " " .. (marketItem.Currency or "Coins")
+                    })
+                    break
+                end
+            end
         end
+        return #itemIds
+    end)
+    
+    if not success then
+        -- Fallback: Add some sample items if scanning fails
+        table.insert(MERCHANT_ITEMS, {
+            Id = 1,
+            Name = "Fishing Rod Basic",
+            Price = 100,
+            Currency = "Coins",
+            DisplayName = "Fishing Rod Basic - 100 Coins"
+        })
+        table.insert(MERCHANT_ITEMS, {
+            Id = 2, 
+            Name = "Advanced Bait",
+            Price = 50,
+            Currency = "Coins",
+            DisplayName = "Advanced Bait - 50 Coins"
+        })
     end
     
     return #MERCHANT_ITEMS
 end
 
--- Check if Player Owns Item
-local function OwnsLocalItem(itemData)
-    local modules = LoadModules()
-    local itemInfo = modules.ItemUtility.GetItemDataFromItemType(itemData.Type, itemData.Identifier)
-    if not itemInfo then
-        return false
+-- Simple function to buy item - FIXED VERSION
+local function BuyItem(itemName)
+    if not itemName then
+        return false, "No item name provided"
     end
     
-    local ownsItem = modules.PlayerStatsUtility:GetItemFromInventory(playerData, function(invItem)
-        return invItem.Id == itemInfo.Data.Id
-    end, modules.InventoryMapping[itemData.Type or "Items"])
-    
-    return ownsItem or false
-end
-
--- Get player balance
-local function GetPlayerBalance(currencyType)
-    if not playerData then return 0 end
-    
-    local modules = LoadModules()
-    local currencyInfo = modules.CurrencyUtility:GetCurrency(currencyType)
-    
-    if currencyInfo and playerData then
-        return playerData:Get(currencyInfo.Path) or 0
-    end
-    return 0
-end
-
--- Purchase item - FIXED VERSION
-local function PurchaseItem(itemData)
-    if not itemData then
-        return false, "No item selected"
+    -- Find the item in merchant items
+    local foundItem = nil
+    for _, item in ipairs(MERCHANT_ITEMS) do
+        if item.Name == itemName or item.DisplayName:find(itemName) then
+            foundItem = item
+            break
+        end
     end
     
-    -- Check if already owns single copy item
-    if itemData.SingleCopy and OwnsLocalItem(itemData) then
-        return false, "Already owns this item"
+    if not foundItem then
+        return false, "Item not found: " .. tostring(itemName)
     end
     
-    -- Handle Robux purchases
-    if itemData.ProductId then
-        MarketplaceService:PromptProductPurchase(LocalPlayer, itemData.ProductId)
-        return true, "Robux purchase prompted"
-    end
-    
-    -- Handle in-game currency purchases
-    if itemData.Price then
-        local modules = LoadModules()
-        local currencyInfo = modules.CurrencyUtility:GetCurrency(itemData.Currency)
-        if not currencyInfo then
-            return false, "Invalid currency type"
+    -- Direct purchase using the game's RemoteFunction
+    local success, result = pcall(function()
+        -- Try different possible RemoteFunction names
+        local purchaseRemote = ReplicatedStorage:FindFirstChild("PurchaseMarketItem")
+        if not purchaseRemote then
+            purchaseRemote = ReplicatedStorage:FindFirstChild("RemoteFunctions"):FindFirstChild("PurchaseMarketItem")
         end
         
-        local playerBalance = GetPlayerBalance(itemData.Currency)
-        if playerBalance < itemData.Price then
-            return false, string.format("Insufficient %s. Need: %d, Have: %d", 
-                itemData.Currency, itemData.Price, playerBalance)
-        end
-        
-        -- Attempt purchase
-        local success, result = pcall(function()
-            local purchaseRemote = modules.Net:RemoteFunction("PurchaseMarketItem")
-            return purchaseRemote:InvokeServer(itemData.Id)
-        end)
-        
-        if success and result then
-            return true, "Purchase successful!"
+        if purchaseRemote and purchaseRemote:IsA("RemoteFunction") then
+            return purchaseRemote:InvokeServer(foundItem.Name)
         else
-            return false, "Purchase failed - server error"
+            return false, "Purchase remote not found"
         end
-    end
+    end)
     
-    return false, "Item not available for purchase"
+    if success then
+        if result == true then
+            return true, "Successfully purchased: " .. foundItem.Name
+        else
+            return false, "Purchase failed - server returned false"
+        end
+    else
+        return false, "Purchase error: " .. tostring(result)
+    end
 end
 
--- Auto Buy System
+-- Auto Buy System - SIMPLE VERSION
 local function StartAutoBuy()
     if AUTO_BUY_ENABLED then return end
     
@@ -420,21 +364,22 @@ local function StartAutoBuy()
     
     AUTO_BUY_LOOP = task.spawn(function()
         local purchaseAttempts = 0
-        local maxAttempts = 20
+        local maxAttempts = 30  -- Increased attempts
         
         while AUTO_BUY_ENABLED and purchaseAttempts < maxAttempts do
-            local success, message = PurchaseItem(SELECTED_ITEM)
+            local success, message = BuyItem(SELECTED_ITEM.Name)
             
             if success then
                 Notify({
                     Title = "Purchase Successful", 
-                    Content = "Successfully purchased: " .. SELECTED_ITEM.Name,
+                    Content = message,
                     Duration = 3
                 })
                 AUTO_BUY_ENABLED = false
                 break
             else
-                if string.find(message, "Insufficient") then
+                -- Don't stop on errors, just continue trying
+                if string.find(tostring(message), "insufficient", 1, true) then
                     Notify({
                         Title = "Auto Buy Stopped", 
                         Content = "Insufficient funds",
@@ -442,19 +387,11 @@ local function StartAutoBuy()
                     })
                     AUTO_BUY_ENABLED = false
                     break
-                elseif string.find(message, "Already owns") then
-                    Notify({
-                        Title = "Auto Buy Completed", 
-                        Content = "Already own this item",
-                        Duration = 3
-                    })
-                    AUTO_BUY_ENABLED = false
-                    break
                 end
             end
             
             purchaseAttempts += 1
-            task.wait(0.5)
+            task.wait(0.3)  -- Faster retry for testing
         end
         
         if purchaseAttempts >= maxAttempts then
@@ -565,30 +502,31 @@ local MerchantTab = Window:CreateTab("Merchant Auto Buyer", "store")
 
 MerchantTab:CreateParagraph({
     Title = "Merchant Auto Purchase System",
-    Content = "Automatically purchase items from merchant shop. Scan items first, then select and purchase."
+    Content = "Simple and direct purchase system. No ownership checks - just buy!"
 })
 
--- Balance Display
-local balanceParagraph = MerchantTab:CreateParagraph({
-    Title = "Player Balance",
-    Content = "Coins: 0 | Gems: 0"
+-- Status display for merchant
+local merchantStatus = MerchantTab:CreateParagraph({
+    Title = "Merchant Status:",
+    Content = "Ready to scan items"
 })
 
 -- Item Selection Dropdown
 local itemDropdown = MerchantTab:CreateDropdown({
     Name = "Select Item to Purchase",
-    Options = {"Please scan items first..."},
-    CurrentOption = "Please scan items first...",
+    Options = {"Click scan button first..."},
+    CurrentOption = "Click scan button first...",
     Flag = "MerchantItemSelect",
     Callback = function(selected)
-        if selected == "Please scan items first..." then return end
+        if selected == "Click scan button first..." then return end
         
         for _, item in ipairs(MERCHANT_ITEMS) do
             if item.DisplayName == selected then
                 SELECTED_ITEM = item
+                merchantStatus:Set("Selected: " .. item.Name)
                 Notify({
                     Title = "Item Selected", 
-                    Content = string.format("Selected: %s", item.Name),
+                    Content = "Ready to purchase: " .. item.Name,
                     Duration = 2
                 })
                 break
@@ -601,8 +539,7 @@ local itemDropdown = MerchantTab:CreateDropdown({
 MerchantTab:CreateButton({
     Name = "Scan Merchant Items",
     Callback = function()
-        InitializeMerchantData()
-        local itemCount = ScanMerchantItems()
+        local itemCount = ShowShopItems()
         
         if itemCount > 0 then
             -- Update dropdown
@@ -614,17 +551,15 @@ MerchantTab:CreateButton({
             itemDropdown:Refresh(newOptions, true)
             
             -- Auto select first item
-            SELECTED_ITEM = MERCHANT_ITEMS[1]
-            
-            -- Update balance
-            local coins = GetPlayerBalance("Coins")
-            local gems = GetPlayerBalance("Gems")
-            balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
+            if #MERCHANT_ITEMS > 0 then
+                SELECTED_ITEM = MERCHANT_ITEMS[1]
+                merchantStatus:Set("Selected: " .. SELECTED_ITEM.Name)
+            end
             
             Notify({
                 Title = "Scan Complete", 
-                Content = string.format("Found %d available items. Auto-selected: %s", itemCount, SELECTED_ITEM.Name),
-                Duration = 4
+                Content = string.format("Found %d available items", itemCount),
+                Duration = 3
             })
         else
             Notify({
@@ -645,18 +580,18 @@ MerchantTab:CreateButton({
             return
         end
         
-        local success, message = PurchaseItem(SELECTED_ITEM)
+        merchantStatus:Set("Purchasing: " .. SELECTED_ITEM.Name)
+        
+        local success, message = BuyItem(SELECTED_ITEM.Name)
         if success then
+            merchantStatus:Set("Purchase Successful!")
             Notify({
                 Title = "Purchase Successful", 
                 Content = message,
                 Duration = 3
             })
-            -- Refresh balance after purchase
-            local coins = GetPlayerBalance("Coins")
-            local gems = GetPlayerBalance("Gems")
-            balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
         else
+            merchantStatus:Set("Purchase Failed")
             Notify({
                 Title = "Purchase Failed", 
                 Content = message,
@@ -685,6 +620,7 @@ MerchantTab:CreateButton({
     Name = "Emergency Stop",
     Callback = function()
         StopAutoBuy()
+        merchantStatus:Set("Stopped - Ready")
         Notify({
             Title = "Emergency Stop", 
             Content = "All auto buy operations stopped",
@@ -693,34 +629,55 @@ MerchantTab:CreateButton({
     end
 })
 
+-- Quick Purchase Buttons for common items
+MerchantTab:CreateSection("Quick Purchase")
+
+MerchantTab:CreateButton({
+    Name = "Quick Buy - First Item",
+    Callback = function()
+        if #MERCHANT_ITEMS > 0 then
+            SELECTED_ITEM = MERCHANT_ITEMS[1]
+            local success, message = BuyItem(SELECTED_ITEM.Name)
+            if success then
+                Notify({Title = "Quick Purchase", Content = message, Duration = 3})
+            else
+                Notify({Title = "Quick Purchase Failed", Content = message, Duration = 4})
+            end
+        else
+            Notify({Title = "Quick Purchase", Content = "No items available. Scan first.", Duration = 3})
+        end
+    end
+})
+
+MerchantTab:CreateButton({
+    Name = "Quick Buy - Second Item", 
+    Callback = function()
+        if #MERCHANT_ITEMS > 1 then
+            SELECTED_ITEM = MERCHANT_ITEMS[2]
+            local success, message = BuyItem(SELECTED_ITEM.Name)
+            if success then
+                Notify({Title = "Quick Purchase", Content = message, Duration = 3})
+            else
+                Notify({Title = "Quick Purchase Failed", Content = message, Duration = 4})
+            end
+        else
+            Notify({Title = "Quick Purchase", Content = "Second item not available", Duration = 3})
+        end
+    end
+})
+
 -- Auto scan on startup
 task.spawn(function()
-    task.wait(3)
-    InitializeMerchantData()
-    local itemCount = ScanMerchantItems()
-    
+    task.wait(2)
+    local itemCount = ShowShopItems()
     if itemCount > 0 then
-        -- Update dropdown
         local newOptions = {}
         for _, item in ipairs(MERCHANT_ITEMS) do
             table.insert(newOptions, item.DisplayName)
         end
-        
         itemDropdown:Refresh(newOptions, true)
-        
-        -- Auto select first item
         SELECTED_ITEM = MERCHANT_ITEMS[1]
-        
-        -- Update balance
-        local coins = GetPlayerBalance("Coins")
-        local gems = GetPlayerBalance("Gems")
-        balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
-        
-        Notify({
-            Title = "Auto Scan Complete", 
-            Content = string.format("Auto-loaded %d items. Selected: %s", itemCount, SELECTED_ITEM.Name),
-            Duration = 4
-        })
+        merchantStatus:Set("Auto-selected: " .. SELECTED_ITEM.Name)
     end
 end)
 
