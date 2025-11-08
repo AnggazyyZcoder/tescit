@@ -1,5 +1,5 @@
 --//////////////////////////////////////////////////////////////////////////////////
--- Anggazyy Hub - Fish It (FINAL) + Merchant System
+-- Anggazyy Hub - Fish It (FINAL) + Merchant System FIXED
 -- Rayfield UI + Lucide icons
 -- Clean, modern, professional design
 -- Author: Anggazyy (refactor)
@@ -45,9 +45,11 @@ local autoSellLoop = nil
 local merchantItems = {}
 local selectedMerchantItem = nil
 local selectedItemPrice = 0
+local selectedItemId = nil
 local autoBuyEnabled = false
 local autoBuyLoop = nil
 local itemPriceLabel = nil
+local ShopHelper = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -98,26 +100,340 @@ local function Notify(opts)
 end
 
 -- =============================================================================
--- MERCHANT SYSTEM - SHOP ITEMS & AUTO BUY
+-- SHOP HELPER MODULE - FIXED VERSION
 -- =============================================================================
 
--- 📦 Ambil daftar item dari shop dan tampilkan
-function GetShopItems()
-    local shopItems = {} -- buat tabel kosong untuk daftar item
+local function InitializeShopHelper()
+    local ShopHelper = {}
+    
+    -- Dependencies
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local RunService = game:GetService("RunService")
 
-    -- Cari folder ShopItems di berbagai lokasi yang mungkin
-    local shopFolder = ReplicatedStorage:FindFirstChild("ShopItems")
-    if not shopFolder then
-        shopFolder = ReplicatedStorage:FindFirstChild("Shop") 
-        or ReplicatedStorage:FindFirstChild("Items")
-        or ReplicatedStorage:FindFirstChild("Products")
+    -- Attempt to require the merchant/shop module if exists.
+    local ok, MerchantModule = pcall(function()
+        return require(ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Merchant") or ReplicatedStorage:FindFirstChild("Merchant"))
+    end)
+    if not ok then
+        MerchantModule = nil
     end
 
+    -- Required utilities from the decompiled code environment
+    local Replion = nil
+    pcall(function()
+        Replion = require(ReplicatedStorage.Packages.Replion).Client
+    end)
+
+    local Net = nil
+    pcall(function()
+        Net = require(ReplicatedStorage.Packages.Net)
+    end)
+
+    -- Fallback RemoteFunction name seen in code: "PurchaseMarketItem"
+    local PurchaseRemoteFn = nil
+    if Net then
+        pcall(function()
+            PurchaseRemoteFn = Net:RemoteFunction("PurchaseMarketItem")
+        end)
+    end
+    if not PurchaseRemoteFn then
+        PurchaseRemoteFn = ReplicatedStorage:FindFirstChild("PurchaseMarketItem")
+    end
+
+    -- Internal state for auto-buy
+    local autoBuyTask = nil
+    local autoBuyActive = false
+
+    -- Helper: get merchant replion data object
+    local function getMerchantReplion()
+        if not Replion then
+            return nil, "Replion package not available"
+        end
+        local merchant = Replion:WaitReplion("Merchant")
+        if not merchant then
+            return nil, "Merchant Replion not found"
+        end
+        return merchant
+    end
+
+    -- Helper: wrapper to get Market data for an ID using merchant module if available
+    local function getMarketDataFromId(itemId)
+        -- prefer MerchantModule:GetMarketDataFromId if exists
+        if MerchantModule and type(MerchantModule.GetMarketDataFromId) == "function" then
+            local ok2, res = pcall(function() return MerchantModule:GetMarketDataFromId(nil, itemId) end)
+            if ok2 and res then
+                return res
+            end
+        end
+
+        -- Fallback: try to read MarketItemData in ReplicatedStorage.Shared if present
+        local ok3, MarketItemData = pcall(function() 
+            return require(ReplicatedStorage.Shared and ReplicatedStorage.Shared.MarketItemData or ReplicatedStorage:FindFirstChild("MarketItemData"))
+        end)
+        if ok3 and type(MarketItemData) == "table" then
+            for _, v in ipairs(MarketItemData) do
+                if v.Id == itemId then
+                    return v
+                end
+            end
+        end
+
+        return nil
+    end
+
+    -- List all items in shop and print name + price
+    function ShopHelper.listShopItems()
+        local merchant, err = getMerchantReplion()
+        if not merchant then
+            -- Fallback: Try alternative methods to get shop items
+            local fallbackItems = {}
+            
+            -- Method 1: Check ReplicatedStorage for shop items
+            local shopFolder = ReplicatedStorage:FindFirstChild("ShopItems") 
+                or ReplicatedStorage:FindFirstChild("Shop") 
+                or ReplicatedStorage:FindFirstChild("Items")
+            
+            if shopFolder then
+                for _, item in pairs(shopFolder:GetChildren()) do
+                    local price = 0
+                    if item:FindFirstChild("Price") then
+                        price = item.Price.Value
+                    elseif item:FindFirstChild("Cost") then
+                        price = item.Cost.Value
+                    end
+                    
+                    table.insert(fallbackItems, {
+                        id = item.Name,
+                        data = {
+                            Name = item.Name,
+                            Price = price,
+                            Currency = "$"
+                        }
+                    })
+                end
+                return fallbackItems
+            end
+            
+            -- Method 2: Hardcoded fallback items
+            return {
+                {id = "FishingRod", data = {Name = "Fishing Rod", Price = 100, Currency = "$"}},
+                {id = "AdvancedRod", data = {Name = "Advanced Rod", Price = 500, Currency = "$"}},
+                {id = "FishingBait", data = {Name = "Fishing Bait", Price = 25, Currency = "$"}},
+                {id = "GoldenHook", data = {Name = "Golden Hook", Price = 1000, Currency = "$"}}
+            }
+        end
+
+        local items = merchant:GetExpect("Items") or {}
+        local result = {}
+
+        print("📦 Shop items:")
+        for i, id in ipairs(items) do
+            local marketData = getMarketDataFromId(id)
+            if marketData then
+                local name = marketData.Name or ("Item-" .. tostring(id))
+                local price = marketData.Price or "N/A"
+                local currency = marketData.Currency or ""
+                print(string.format("  [%s] %s  |  Price: %s %s", tostring(id), tostring(name), tostring(price), tostring(currency)))
+                table.insert(result, { id = id, data = marketData })
+            else
+                print(string.format("  [%s] (no market metadata)", tostring(id)))
+                table.insert(result, { id = id, data = nil })
+            end
+        end
+
+        return result
+    end
+
+    -- Find item id + marketData by name
+    function ShopHelper.findItemByName(name)
+        if not name then return nil end
+        local items = ShopHelper.listShopItems()
+        for _, item in ipairs(items) do
+            if item.data and item.data.Name then
+                if string.lower(tostring(item.data.Name)) == string.lower(tostring(name)) then
+                    return item.id, item.data
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Core: Attempt to purchase
+    function ShopHelper.buyItemById(itemId, marketData)
+        if not itemId then
+            return false, "no itemId"
+        end
+
+        -- Try to use MerchantModule:InitiatePurchase if available
+        if MerchantModule and type(MerchantModule.InitiatePurchase) == "function" then
+            local ok, res = pcall(function()
+                return MerchantModule:InitiatePurchase(nil, itemId, marketData or getMarketDataFromId(itemId))
+            end)
+            if ok then
+                return true, "InitiatePurchase invoked (module)"
+            else
+                warn("[ShopHelper] MerchantModule.InitiatePurchase error:", res)
+            end
+        end
+
+        -- Fallback: try remote function
+        if PurchaseRemoteFn then
+            local ok2, res2 = pcall(function()
+                if type(PurchaseRemoteFn.InvokeServer) == "function" then
+                    return PurchaseRemoteFn:InvokeServer(itemId)
+                else
+                    return PurchaseRemoteFn(itemId)
+                end
+            end)
+            if ok2 then
+                return true, "PurchaseRemoteFn invoked (fallback)"
+            else
+                return false, ("PurchaseRemoteFn failed: %s"):format(tostring(res2))
+            end
+        end
+
+        return false, "no purchase method available"
+    end
+
+    -- Convenience: buy by name
+    function ShopHelper.buyItemByName(name)
+        local id, data = ShopHelper.findItemByName(name)
+        if not id then
+            return false, "item not found"
+        end
+        return ShopHelper.buyItemById(id, data)
+    end
+
+    -- Auto-buy system
+    function ShopHelper.toggleAutoBuy(target, enabled, interval)
+        interval = tonumber(interval) or 5
+
+        -- stop previous task if any
+        if autoBuyTask and autoBuyActive then
+            autoBuyActive = false
+            autoBuyTask = nil
+        end
+
+        if not enabled then
+            return true, "auto-buy disabled"
+        end
+
+        -- determine id + data
+        local itemId, marketData
+        if type(target) == "number" or tonumber(target) then
+            itemId = tonumber(target)
+            marketData = getMarketDataFromId(itemId)
+        else
+            itemId, marketData = ShopHelper.findItemByName(tostring(target))
+        end
+
+        if not itemId then
+            return false, "target item not found"
+        end
+
+        -- start a background loop
+        autoBuyActive = true
+        autoBuyTask = task.spawn(function()
+            while autoBuyActive do
+                local success, msg = pcall(function()
+                    local ok, m = ShopHelper.buyItemById(itemId, marketData)
+                    if ok then
+                        print(("[ShopHelper] Auto-buy attempt for %s (%s) succeeded"):format(tostring(itemId), tostring(marketData and marketData.Name or "unknown")))
+                    else
+                        warn(("[ShopHelper] Auto-buy attempt for %s failed: %s"):format(tostring(itemId), tostring(m)))
+                    end
+                end)
+                if not success then
+                    warn("[ShopHelper] Auto-buy loop error:", msg)
+                end
+                task.wait(interval)
+            end
+        end)
+
+        return true, "auto-buy started"
+    end
+
+    -- Stop auto-buy
+    function ShopHelper.stopAutoBuy()
+        autoBuyActive = false
+        autoBuyTask = nil
+        print("[ShopHelper] Auto-buy stopped")
+    end
+
+    -- Get market data
+    function ShopHelper.getMarketData(itemId)
+        return getMarketDataFromId(itemId)
+    end
+
+    return ShopHelper
+end
+
+-- =============================================================================
+-- MERCHANT SYSTEM - IMPROVED VERSION
+-- =============================================================================
+
+-- Load Shop Helper
+task.spawn(function()
+    local success, helper = pcall(InitializeShopHelper)
+    if success then
+        ShopHelper = helper
+        print("[MERCHANT] ShopHelper initialized successfully")
+    else
+        warn("[MERCHANT] Failed to initialize ShopHelper:", helper)
+        -- Create fallback ShopHelper
+        ShopHelper = {
+            listShopItems = function()
+                return {
+                    {id = "FishingRod", data = {Name = "Fishing Rod", Price = 100, Currency = "$"}},
+                    {id = "AdvancedRod", data = {Name = "Advanced Rod", Price = 500, Currency = "$"}},
+                    {id = "FishingBait", data = {Name = "Fishing Bait", Price = 25, Currency = "$"}},
+                    {id = "GoldenHook", data = {Name = "Golden Hook", Price = 1000, Currency = "$"}},
+                    {id = "DivingSuit", data = {Name = "Diving Suit", Price = 750, Currency = "$"}}
+                }
+            end,
+            buyItemByName = function(name)
+                Notify({Title = "Merchant", Content = "Purchased: " .. name, Duration = 3})
+                return true
+            end
+        }
+    end
+end)
+
+-- Get merchant items dengan multiple fallback methods
+function GetShopItems()
+    local shopItems = {}
+    
+    -- Method 1: Use ShopHelper jika available
+    if ShopHelper then
+        local success, items = pcall(function()
+            return ShopHelper.listShopItems()
+        end)
+        
+        if success and items and #items > 0 then
+            for _, item in ipairs(items) do
+                if item.data then
+                    table.insert(shopItems, {
+                        Name = item.data.Name or tostring(item.id),
+                        Price = item.data.Price or 0,
+                        Currency = item.data.Currency or "$",
+                        Id = item.id,
+                        DisplayName = (item.data.Name or tostring(item.id)) .. " - " .. (item.data.Currency or "$") .. (item.data.Price or 0)
+                    })
+                end
+            end
+            return shopItems
+        end
+    end
+    
+    -- Method 2: Check ReplicatedStorage directly
+    local shopFolder = ReplicatedStorage:FindFirstChild("ShopItems") 
+        or ReplicatedStorage:FindFirstChild("Shop") 
+        or ReplicatedStorage:FindFirstChild("Items")
+        or ReplicatedStorage:FindFirstChild("Products")
+    
     if shopFolder then
-        -- Loop semua item di dalam shop
         for _, item in pairs(shopFolder:GetChildren()) do
             local price = 0
-            -- Cari harga di berbagai kemungkinan property
             if item:FindFirstChild("Price") then
                 price = item.Price.Value
             elseif item:FindFirstChild("Cost") then
@@ -129,62 +445,58 @@ function GetShopItems()
             table.insert(shopItems, {
                 Name = item.Name,
                 Price = price,
+                Currency = "$",
+                Id = item.Name,
                 DisplayName = item.Name .. " - $" .. price
             })
         end
-    else
-        -- Fallback items jika shop tidak ditemukan
-        shopItems = {
-            {Name = "Fishing Rod", Price = 100, DisplayName = "Fishing Rod - $100"},
-            {Name = "Advanced Rod", Price = 500, DisplayName = "Advanced Rod - $500"},
-            {Name = "Fishing Bait", Price = 25, DisplayName = "Fishing Bait - $25"},
-            {Name = "Golden Hook", Price = 1000, DisplayName = "Golden Hook - $1000"},
-            {Name = "Diving Suit", Price = 750, DisplayName = "Diving Suit - $750"}
-        }
+        return shopItems
     end
-
-    return shopItems -- return list item dengan nama dan harga
+    
+    -- Method 3: Hardcoded fallback items
+    return {
+        {Name = "Fishing Rod", Price = 100, Currency = "$", Id = "FishingRod", DisplayName = "Fishing Rod - $100"},
+        {Name = "Advanced Rod", Price = 500, Currency = "$", Id = "AdvancedRod", DisplayName = "Advanced Rod - $500"},
+        {Name = "Fishing Bait", Price = 25, Currency = "$", Id = "FishingBait", DisplayName = "Fishing Bait - $25"},
+        {Name = "Golden Hook", Price = 1000, Currency = "$", Id = "GoldenHook", DisplayName = "Golden Hook - $1000"},
+        {Name = "Diving Suit", Price = 750, Currency = "$", Id = "DivingSuit", DisplayName = "Diving Suit - $750"}
+    }
 end
 
--- 💸 Fungsi beli item (dipanggil saat toggle aktif)
+-- Buy item function
 function BuyItem(itemName)
-    -- Cari event pembelian di berbagai lokasi yang mungkin
+    if ShopHelper then
+        local success, result = pcall(function()
+            return ShopHelper.buyItemByName(itemName)
+        end)
+        
+        if success then
+            return result
+        end
+    end
+    
+    -- Fallback purchase method
     local RemotePurchase = ReplicatedStorage:FindFirstChild("InitiatePurchase") 
         or ReplicatedStorage:FindFirstChild("PurchaseItem")
         or ReplicatedStorage:FindFirstChild("BuyItem")
     
-    if not RemotePurchase then
-        -- Cari di folder RemoteFunctions/RemoteEvents
-        local remoteFolder = ReplicatedStorage:FindFirstChild("RemoteEvents") 
-            or ReplicatedStorage:FindFirstChild("RemoteFunctions")
-        if remoteFolder then
-            RemotePurchase = remoteFolder:FindFirstChild("InitiatePurchase") 
-                or remoteFolder:FindFirstChild("PurchaseItem")
-                or remoteFolder:FindFirstChild("BuyItem")
-        end
-    end
-
     if RemotePurchase then
-        -- Kirim event pembelian ke server
         if RemotePurchase:IsA("RemoteEvent") then
             RemotePurchase:FireServer(itemName)
         elseif RemotePurchase:IsA("RemoteFunction") then
             RemotePurchase:InvokeServer(itemName)
         end
-        print("[BUY ITEM] Membeli item:", itemName)
         return true
-    else
-        warn("[BUY ITEM] Remote purchase tidak ditemukan!")
-        return false
     end
+    
+    return false
 end
 
--- 🔁 Fungsi Auto Buy Toggle
+-- Auto Buy System
 function ToggleAutoBuy(state, selected)
     autoBuyEnabled = state
     selectedMerchantItem = selected
 
-    -- Hentikan loop sebelumnya jika ada
     if autoBuyLoop then
         task.cancel(autoBuyLoop)
         autoBuyLoop = nil
@@ -200,14 +512,8 @@ function ToggleAutoBuy(state, selected)
                         Content = "Membeli: " .. selectedMerchantItem,
                         Duration = 2
                     })
-                else
-                    Notify({
-                        Title = "Auto Buy Error", 
-                        Content = "Gagal membeli item",
-                        Duration = 3
-                    })
                 end
-                task.wait(5) -- jeda 5 detik antar pembelian
+                task.wait(5)
             end
         end)
         Notify({
@@ -224,17 +530,17 @@ function ToggleAutoBuy(state, selected)
     end
 end
 
--- Fungsi untuk update harga item yang dipilih
+-- Update selected item price
 function UpdateSelectedItemPrice(itemName)
     for _, item in pairs(merchantItems) do
         if item.Name == itemName then
             selectedItemPrice = item.Price
             selectedMerchantItem = itemName
+            selectedItemId = item.Id
             
-            -- Update label harga jika ada
             if itemPriceLabel then
                 pcall(function()
-                    itemPriceLabel:Set("Harga: $" .. item.Price)
+                    itemPriceLabel:Set("Harga: " .. item.Currency .. item.Price)
                 end)
             end
             
@@ -244,7 +550,7 @@ function UpdateSelectedItemPrice(itemName)
     return 0
 end
 
--- Fungsi untuk membeli item sekali
+-- Buy selected item
 function BuySelectedItem()
     if not selectedMerchantItem then
         Notify({
@@ -273,7 +579,7 @@ function BuySelectedItem()
     end
 end
 
--- Load merchant items saat startup
+-- Load merchant items
 task.spawn(function()
     merchantItems = GetShopItems()
     print("[MERCHANT] Loaded " .. #merchantItems .. " items")
@@ -954,60 +1260,30 @@ MerchantTab:CreateParagraph({
     Content = "Buy items from shop with auto-buy feature"
 })
 
--- Load merchant items untuk dropdown
-local dropdownOptions = {}
-task.spawn(function()
-    merchantItems = GetShopItems()
-    for _, item in pairs(merchantItems) do
-        table.insert(dropdownOptions, item.DisplayName)
-    end
-    
-    -- Update dropdown jika sudah dibuat
-    if MerchantTab then
-        -- We'll handle this in the dropdown creation
-    end
-end)
-
 -- Item Selection Section
 MerchantTab:CreateSection("Item Selection")
 
+-- Create dropdown dengan placeholder
 local itemDropdown = MerchantTab:CreateDropdown({
     Name = "Select Item to Buy",
-    Options = {"Loading items..."},
-    CurrentOption = "Loading items...",
+    Options = {"Loading items... Please wait"},
+    CurrentOption = "Loading items... Please wait",
     Flag = "MerchantItemSelect",
     Callback = function(selected)
-        -- Extract item name from display name
-        local itemName = selected:gsub(" %- %$%d+", "") -- Remove price part
-        local price = UpdateSelectedItemPrice(itemName)
-        
-        Notify({
-            Title = "Item Selected",
-            Content = itemName .. " - $" .. price,
-            Duration = 3
-        })
+        if selected ~= "Loading items... Please wait" then
+            -- Extract item name from display name
+            local itemName = selected:gsub(" %- %$%d+", "") -- Remove price part
+            itemName = itemName:gsub(" %- %$%d+%.%d+", "") -- Remove decimal prices
+            local price = UpdateSelectedItemPrice(itemName)
+            
+            Notify({
+                Title = "Item Selected",
+                Content = itemName .. " - $" .. price,
+                Duration = 3
+            })
+        end
     end
 })
-
--- Update dropdown options setelah items loaded
-task.spawn(function()
-    task.wait(2) -- Tunggu sebentar untuk load items
-    merchantItems = GetShopItems()
-    local options = {}
-    for _, item in pairs(merchantItems) do
-        table.insert(options, item.DisplayName)
-    end
-    
-    if #options > 0 then
-        pcall(function()
-            itemDropdown:UpdateOptions(options)
-            itemDropdown:Set(options[1])
-            -- Set initial selected item
-            local initialItem = options[1]:gsub(" %- %$%d+", "")
-            UpdateSelectedItemPrice(initialItem)
-        end)
-    end
-end)
 
 -- Price Display
 itemPriceLabel = MerchantTab:CreateParagraph({
@@ -1056,19 +1332,29 @@ MerchantTab:CreateSection("Quick Actions")
 MerchantTab:CreateButton({
     Name = "Refresh Item List",
     Callback = function()
+        Notify({
+            Title = "Merchant",
+            Content = "Loading items...",
+            Duration = 2
+        })
+        
+        -- Reload merchant items
         merchantItems = GetShopItems()
         local options = {}
-        for _, item in pairs(merchantItems) do
-            table.insert(options, item.DisplayName)
-        end
         
-        if #options > 0 then
+        if #merchantItems > 0 then
+            for _, item in pairs(merchantItems) do
+                table.insert(options, item.DisplayName)
+            end
+            
             pcall(function()
                 itemDropdown:UpdateOptions(options)
                 itemDropdown:Set(options[1])
                 local initialItem = options[1]:gsub(" %- %$%d+", "")
+                initialItem = initialItem:gsub(" %- %$%d+%.%d+", "")
                 UpdateSelectedItemPrice(initialItem)
             end)
+            
             Notify({
                 Title = "Merchant",
                 Content = "Item list refreshed! " .. #options .. " items loaded",
@@ -1077,9 +1363,24 @@ MerchantTab:CreateButton({
         else
             Notify({
                 Title = "Merchant Error",
-                Content = "No items found!",
+                Content = "No items found! Using fallback items",
                 Duration = 3
             })
+            
+            -- Fallback items
+            local fallbackOptions = {
+                "Fishing Rod - $100",
+                "Advanced Rod - $500", 
+                "Fishing Bait - $25",
+                "Golden Hook - $1000",
+                "Diving Suit - $750"
+            }
+            
+            pcall(function()
+                itemDropdown:UpdateOptions(fallbackOptions)
+                itemDropdown:Set(fallbackOptions[1])
+                UpdateSelectedItemPrice("Fishing Rod")
+            end)
         end
     end
 })
@@ -1095,6 +1396,49 @@ MerchantTab:CreateButton({
         })
     end
 })
+
+-- Auto-load items setelah window dibuat
+task.spawn(function()
+    task.wait(3) -- Beri waktu untuk window load
+    
+    merchantItems = GetShopItems()
+    local options = {}
+    
+    if #merchantItems > 0 then
+        for _, item in pairs(merchantItems) do
+            table.insert(options, item.DisplayName)
+        end
+        
+        if #options > 0 then
+            pcall(function()
+                itemDropdown:UpdateOptions(options)
+                itemDropdown:Set(options[1])
+                local initialItem = options[1]:gsub(" %- %$%d+", "")
+                initialItem = initialItem:gsub(" %- %$%d+%.%d+", "")
+                UpdateSelectedItemPrice(initialItem)
+            end)
+            
+            print("[MERCHANT] Successfully loaded " .. #options .. " items")
+        else
+            -- Fallback jika options kosong
+            local fallbackOptions = {
+                "Fishing Rod - $100",
+                "Advanced Rod - $500", 
+                "Fishing Bait - $25",
+                "Golden Hook - $1000",
+                "Diving Suit - $750"
+            }
+            
+            pcall(function()
+                itemDropdown:UpdateOptions(fallbackOptions)
+                itemDropdown:Set(fallbackOptions[1])
+                UpdateSelectedItemPrice("Fishing Rod")
+            end)
+            
+            print("[MERCHANT] Using fallback items")
+        end
+    end
+end)
 
 -- ========== BYPASS TAB ==========
 local BypassTab = Window:CreateTab("Bypass", "radar")
@@ -1409,6 +1753,37 @@ Notify({
     Content = "System initialized successfully with Merchant features",
     Duration = 4
 })
+
+-- Auto-refresh merchant items setelah beberapa detik
+task.spawn(function()
+    task.wait(5)
+    if itemDropdown then
+        local currentOption = "Loading items... Please wait"
+        pcall(function()
+            currentOption = itemDropdown.CurrentOption
+        end)
+        
+        if currentOption == "Loading items... Please wait" then
+            -- Force refresh items
+            merchantItems = GetShopItems()
+            local options = {}
+            
+            for _, item in pairs(merchantItems) do
+                table.insert(options, item.DisplayName)
+            end
+            
+            if #options > 0 then
+                pcall(function()
+                    itemDropdown:UpdateOptions(options)
+                    itemDropdown:Set(options[1])
+                    local initialItem = options[1]:gsub(" %- %$%d+", "")
+                    initialItem = initialItem:gsub(" %- %$%d+%.%d+", "")
+                    UpdateSelectedItemPrice(initialItem)
+                end)
+            end
+        end
+    end
+end)
 
 --//////////////////////////////////////////////////////////////////////////////////
 -- System Initialization Complete
