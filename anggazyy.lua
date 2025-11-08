@@ -42,9 +42,11 @@ local autoSellThreshold = 3
 local autoSellLoop = nil
 
 -- Perfect Cast Fishing Variables
-local manualFishingEnabled = false
+local perfectCastEnabled = false
 local currentFishingPower = 0.7 -- Default power (70%)
-local manualFishLoopThread = nil
+local perfectCastThread = nil
+local isCurrentlyFishing = false
+local minigameClickThread = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -141,7 +143,7 @@ local function StartAutoFish()
     autoFishEnabled = true
     if statusParagraph then 
         pcall(function() 
-            statusParagraph:Set("Status: ACTIVE")
+            statusParagraph:Set("Status: AUTO FISHING ACTIVE")
         end) 
     end
     Notify({Title = "Auto Fishing", Content = "System activated successfully", Duration = 2})
@@ -172,171 +174,247 @@ local function StopAutoFish()
 end
 
 -- =============================================================================
--- PERFECT CAST FISHING SYSTEM - MANUAL POWER CONTROL
+-- PERFECT CAST FISHING SYSTEM - ADVANCED VERSION
 -- =============================================================================
 
-local function GetFishingRemote()
-    local ok, NetModule = pcall(function()
-        local folder = ReplicatedStorage:WaitForChild(NET_PACKAGES_FOLDER, 5)
-        if folder then
-            local netCandidate = folder:FindFirstChild("Net")
-            if netCandidate and netCandidate:IsA("ModuleScript") then
-                return require(netCandidate)
-            end
-        end
-        if ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Net") then
-            local m = ReplicatedStorage.Packages.Net
-            if m:IsA("ModuleScript") then
-                return require(m)
+-- Fungsi untuk mendapatkan fishing module
+local function GetFishingModule()
+    local success, fishingModule = pcall(function()
+        -- Cari fishing module dari berbagai lokasi
+        local possiblePaths = {
+            "ReplicatedStorage.Controllers.FishingController",
+            "ReplicatedStorage.Modules.Fishing",
+            "ReplicatedStorage.Shared.Fishing",
+            "ReplicatedStorage.Client.Fishing"
+        }
+        
+        for _, path in ipairs(possiblePaths) do
+            local module = ReplicatedStorage:FindFirstChild(path)
+            if module and module:IsA("ModuleScript") then
+                return require(module)
             end
         end
         return nil
     end)
-    return ok and NetModule or nil
+    return success and fishingModule or nil
 end
 
--- Fungsi untuk memancing dengan power yang bisa diatur
-local function CastFishingRod(powerLevel)
-    pcall(function()
-        local Net = GetFishingRemote()
-        if Net and type(Net.RemoteFunction) == "function" then
-            -- RemoteFunction untuk charge fishing rod
-            local ok, chargeRF = pcall(function() 
-                return Net:RemoteFunction("ChargeFishingRod") 
-            end)
-            
-            if ok and chargeRF then
-                -- Dapatkan waktu server untuk sync
-                local serverTime = workspace:GetServerTimeNow()
-                
-                -- Invoke charging dengan power yang diinginkan
-                local success, responseTime = pcall(function()
-                    return chargeRF:InvokeServer(nil, nil, powerLevel, serverTime)
-                end)
-                
-                if success then
-                    print("Fishing cast dengan power:", powerLevel)
-                    return true
-                end
-            end
-            
-            -- Fallback: RemoteFunction untuk fishing request
-            local ok2, fishingRF = pcall(function() 
-                return Net:RemoteFunction("RequestFishingMinigameStarted") 
-            end)
-            
-            if ok2 and fishingRF then
-                -- Hitung posisi lemparan (tengah screen)
-                local viewportSize = game:GetService("Workspace").CurrentCamera.ViewportSize
-                local castPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-                
-                local success, result = pcall(function()
-                    return fishingRF:InvokeServer(castPosition, powerLevel, workspace:GetServerTimeNow())
-                end)
-                
-                if success then
-                    print("Fishing cast berhasil dengan power:", powerLevel)
-                    return true
-                end
-            end
-        end
-        
-        -- Fallback ke RemoteFunction langsung
-        local rfObj = ReplicatedStorage:FindFirstChild("ChargeFishingRod") 
-            or ReplicatedStorage:FindFirstChild("RequestFishingMinigameStarted")
-            or (ReplicatedStorage:FindFirstChild("RemoteFunctions") and 
-                (ReplicatedStorage.RemoteFunctions:FindFirstChild("ChargeFishingRod") or 
-                 ReplicatedStorage.RemoteFunctions:FindFirstChild("RequestFishingMinigameStarted")))
-        
-        if rfObj and rfObj:IsA("RemoteFunction") then
-            local success = pcall(function()
-                if rfObj.Name == "ChargeFishingRod" then
-                    rfObj:InvokeServer(nil, nil, powerLevel, workspace:GetServerTimeNow())
+-- Fungsi untuk trigger fishing minigame click (auto complete minigame)
+local function AutoCompleteMinigame()
+    if minigameClickThread then
+        task.cancel(minigameClickThread)
+        minigameClickThread = nil
+    end
+    
+    minigameClickThread = task.spawn(function()
+        local clickCount = 0
+        while perfectCastEnabled and isCurrentlyFishing do
+            pcall(function()
+                -- Dapatkan fishing module
+                local fishingModule = GetFishingModule()
+                if fishingModule and fishingModule.RequestFishingMinigameClick then
+                    fishingModule:RequestFishingMinigameClick()
+                    clickCount += 1
                 else
-                    local viewportSize = game:GetService("Workspace").CurrentCamera.ViewportSize
-                    local castPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-                    rfObj:InvokeServer(castPosition, powerLevel, workspace:GetServerTimeNow())
+                    -- Fallback: Gunakan remote function langsung
+                    local Net = GetAutoFishRemote()
+                    if Net and Net.RemoteEvent then
+                        local fishingClickEvent = Net:RemoteEvent("FishingMinigameClick")
+                        if fishingClickEvent then
+                            fishingClickEvent:FireServer()
+                            clickCount += 1
+                        end
+                    end
+                end
+                
+                -- Stop jika sudah banyak klik (prevent infinite loop)
+                if clickCount > 50 then
+                    isCurrentlyFishing = false
                 end
             end)
-            
-            if success then
-                print("Fishing cast berhasil dengan power:", powerLevel)
-                return true
-            end
+            task.wait(0.08) -- Klik setiap 0.08 detik untuk cepat selesai
         end
     end)
-    
+end
+
+-- Fungsi untuk memulai fishing session dengan power tertentu
+local function StartFishingSession(powerLevel)
+    pcall(function()
+        local Net = GetAutoFishRemote()
+        if not Net then return false end
+        
+        -- Gunakan RequestChargeFishingRod dengan power yang ditentukan
+        local success = pcall(function()
+            -- Dapatkan posisi tengah layar
+            local viewportSize = workspace.CurrentCamera.ViewportSize
+            local centerPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+            
+            -- Panggil RequestChargeFishingRod dengan power level
+            if Net.RemoteFunction then
+                local chargeRF = Net:RemoteFunction("ChargeFishingRod")
+                if chargeRF then
+                    local serverTime = workspace:GetServerTimeNow()
+                    local result = chargeRF:InvokeServer(nil, nil, powerLevel, serverTime)
+                    return result ~= nil
+                end
+            end
+            return false
+        end)
+        
+        if success then
+            isCurrentlyFishing = true
+            -- Mulai auto complete minigame setelah delay
+            task.delay(1.5, AutoCompleteMinigame)
+            return true
+        end
+        
+        -- Fallback: Gunakan SendFishingRequestToServer
+        local success2 = pcall(function()
+            local fishingModule = GetFishingModule()
+            if fishingModule and fishingModule.SendFishingRequestToServer then
+                local viewportSize = workspace.CurrentCamera.ViewportSize
+                local centerPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+                
+                local fishingSuccess, fishingResult = fishingModule:SendFishingRequestToServer(centerPosition, powerLevel)
+                if fishingSuccess then
+                    isCurrentlyFishing = true
+                    task.delay(1.5, AutoCompleteMinigame)
+                    return true
+                end
+            end
+            return false
+        end)
+        
+        return success2
+    end)
     return false
 end
 
--- Fungsi untuk stop fishing manual
-local function StopFishing()
+-- Fungsi untuk stop fishing session
+local function StopFishingSession()
     pcall(function()
-        local Net = GetFishingRemote()
-        if Net and type(Net.RemoteFunction) == "function" then
-            local ok, stopRF = pcall(function() 
-                return Net:RemoteFunction("CancelFishingInputs") 
-            end)
-            
-            if ok and stopRF then
-                pcall(function() stopRF:InvokeServer() end)
-                return
-            end
+        isCurrentlyFishing = false
+        
+        if minigameClickThread then
+            task.cancel(minigameClickThread)
+            minigameClickThread = nil
         end
         
-        local rfObj = ReplicatedStorage:FindFirstChild("CancelFishingInputs") 
-            or (ReplicatedStorage:FindFirstChild("RemoteFunctions") and 
-                ReplicatedStorage.RemoteFunctions:FindFirstChild("CancelFishingInputs"))
-        
-        if rfObj and rfObj:IsA("RemoteFunction") then
-            pcall(function() rfObj:InvokeServer() end)
+        -- Stop fishing melalui module
+        local fishingModule = GetFishingModule()
+        if fishingModule and fishingModule.RequestClientStopFishing then
+            fishingModule:RequestClientStopFishing(true)
+        else
+            -- Fallback: Gunakan remote function
+            local Net = GetAutoFishRemote()
+            if Net and Net.RemoteFunction then
+                local stopRF = Net:RemoteFunction("CancelFishingInputs")
+                if stopRF then
+                    stopRF:InvokeServer()
+                end
+            end
         end
     end)
 end
 
--- System Manual Fishing dengan Power Control
-local function StartManualFishing(power)
-    if manualFishingEnabled then return end
-    manualFishingEnabled = true
-    
-    -- Set power jika diberikan
-    if power then
-        currentFishingPower = math.clamp(power, 0.1, 1.0)
-    end
+-- Main Perfect Cast Fishing Loop
+local function StartPerfectCastFishing()
+    if perfectCastEnabled then return end
+    perfectCastEnabled = true
     
     if statusParagraph then 
         pcall(function() 
-            statusParagraph:Set("Status: MANUAL FISHING - Power: " .. math.floor(currentFishingPower * 100) .. "%")
+            statusParagraph:Set("Status: PERFECT CAST - Power: " .. math.floor(currentFishingPower * 100) .. "%")
         end) 
     end
-    Notify({Title = "Perfect Cast Fishing", Content = "Started with power: " .. math.floor(currentFishingPower * 100) .. "%", Duration = 2})
+    Notify({Title = "Perfect Cast Fishing", Content = "Started with " .. math.floor(currentFishingPower * 100) .. "% power", Duration = 2})
 
-    manualFishLoopThread = task.spawn(function()
-        while manualFishingEnabled do
+    perfectCastThread = task.spawn(function()
+        local castCount = 0
+        local failedAttempts = 0
+        local maxFailedAttempts = 5
+        
+        while perfectCastEnabled do
             pcall(function()
-                -- Cast fishing rod dengan power yang ditentukan
-                local success = CastFishingRod(currentFishingPower)
+                -- Cek apakah player sudah equip fishing rod
+                local character = LocalPlayer.Character
+                if not character or not character:FindFirstChild("HumanoidRootPart") then
+                    task.wait(2)
+                    failedAttempts += 1
+                    if failedAttempts >= maxFailedAttempts then
+                        Notify({
+                            Title = "Perfect Cast Error", 
+                            Content = "Character not found, stopping",
+                            Duration = 3
+                        })
+                        StopPerfectCastFishing()
+                        return
+                    end
+                    return
+                end
+                
+                -- Cek cooldown
+                local fishingModule = GetFishingModule()
+                local onCooldown = false
+                if fishingModule and fishingModule.OnCooldown then
+                    onCooldown = fishingModule:OnCooldown()
+                end
+                
+                if onCooldown then
+                    task.wait(2)
+                    return
+                end
+                
+                -- Start fishing session dengan power yang ditentukan
+                local success = StartFishingSession(currentFishingPower)
+                
                 if success then
-                    print("Manual fishing cast dengan power:", currentFishingPower)
+                    castCount += 1
+                    failedAttempts = 0
+                    print("🎣 Perfect Cast #" .. castCount .. " dengan power: " .. math.floor(currentFishingPower * 100) .. "%")
+                    
+                    -- Tunggu sampai fishing selesai (approx 5-10 detik)
+                    local waitTime = 6 + math.random() * 4
+                    local waited = 0
+                    
+                    while perfectCastEnabled and isCurrentlyFishing and waited < waitTime do
+                        task.wait(1)
+                        waited += 1
+                    end
+                    
+                    -- Stop fishing session
+                    StopFishingSession()
+                    
+                    -- Cooldown antara cast
+                    local cooldownTime = 2 + math.random() * 2
+                    task.wait(cooldownTime)
                 else
-                    print("Gagal casting fishing rod")
+                    failedAttempts += 1
+                    print("❌ Gagal casting, attempt: " .. failedAttempts)
+                    
+                    if failedAttempts >= maxFailedAttempts then
+                        Notify({
+                            Title = "Perfect Cast Error", 
+                            Content = "Multiple failed attempts, stopping",
+                            Duration = 3
+                        })
+                        StopPerfectCastFishing()
+                        return
+                    end
+                    
+                    task.wait(3) -- Tunggu sebelum retry
                 end
             end)
-            
-            -- Tunggu sebelum cast berikutnya (bisa disesuaikan)
-            task.wait(3) -- 3 detik antara cast
         end
     end)
 end
 
-local function StopManualFishing()
-    if not manualFishingEnabled then return end
-    manualFishingEnabled = false
+local function StopPerfectCastFishing()
+    if not perfectCastEnabled then return end
+    perfectCastEnabled = false
     
-    -- Stop fishing yang sedang berjalan
-    pcall(function()
-        StopFishing()
-    end)
+    -- Stop semua proses fishing
+    StopFishingSession()
     
     if statusParagraph then 
         pcall(function() 
@@ -345,9 +423,9 @@ local function StopManualFishing()
     end
     Notify({Title = "Perfect Cast Fishing", Content = "Stopped", Duration = 2})
     
-    if manualFishLoopThread then
-        task.cancel(manualFishLoopThread)
-        manualFishLoopThread = nil
+    if perfectCastThread then
+        task.cancel(perfectCastThread)
+        perfectCastThread = nil
     end
 end
 
@@ -356,14 +434,57 @@ local function SetFishingPower(powerLevel)
     powerLevel = math.clamp(powerLevel, 0.1, 1.0)
     currentFishingPower = powerLevel
     
-    if manualFishingEnabled and statusParagraph then
+    if perfectCastEnabled and statusParagraph then
         pcall(function() 
-            statusParagraph:Set("Status: MANUAL FISHING - Power: " .. math.floor(powerLevel * 100) .. "%")
+            statusParagraph:Set("Status: PERFECT CAST - Power: " .. math.floor(powerLevel * 100) .. "%")
         end) 
     end
     
     Notify({Title = "Fishing Power", Content = "Set to: " .. math.floor(powerLevel * 100) .. "%", Duration = 1})
     return currentFishingPower
+end
+
+-- Fungsi single cast (manual trigger)
+local function SingleCast()
+    if perfectCastEnabled then
+        Notify({
+            Title = "Warning", 
+            Content = "Stop Perfect Cast first for single cast",
+            Duration = 3
+        })
+        return
+    end
+    
+    pcall(function()
+        local success = StartFishingSession(currentFishingPower)
+        if success then
+            Notify({
+                Title = "Single Cast", 
+                Content = "Casted with " .. math.floor(currentFishingPower * 100) .. "% power",
+                Duration = 2
+            })
+            
+            -- Auto complete minigame untuk single cast juga
+            task.delay(1.5, function()
+                if isCurrentlyFishing then
+                    AutoCompleteMinigame()
+                end
+            end)
+            
+            -- Auto stop setelah beberapa detik
+            task.delay(10, function()
+                if isCurrentlyFishing then
+                    StopFishingSession()
+                end
+            end)
+        else
+            Notify({
+                Title = "Cast Failed", 
+                Content = "Failed to cast fishing rod",
+                Duration = 2
+            })
+        end
+    end)
 end
 
 -- =============================================================================
@@ -927,7 +1048,7 @@ local InfoTab = Window:CreateTab("Information", "info")
 
 InfoTab:CreateParagraph({
     Title = "Anggazyy Hub - Fish It",
-    Content = "Premium fishing automation with performance optimization"
+    Content = "Premium fishing automation with performance optimization\n• Auto Fishing System\n• Perfect Cast Fishing\n• Advanced Bypass Features\n• Performance Optimization"
 })
 
 -- ========== FISHING TAB ==========
@@ -935,7 +1056,7 @@ local FishingTab = Window:CreateTab("Fishing", "fish")
 
 FishingTab:CreateParagraph({
     Title = "Fishing Automation System",
-    Content = "Multiple fishing modes with power control"
+    Content = "Multiple fishing modes with power control and auto-completion"
 })
 
 statusParagraph = FishingTab:CreateParagraph({
@@ -944,7 +1065,7 @@ statusParagraph = FishingTab:CreateParagraph({
 })
 
 -- Auto Fishing Section
-FishingTab:CreateSection("Auto Fishing")
+FishingTab:CreateSection("🤖 Auto Fishing")
 
 FishingTab:CreateToggle({
     Name = "Enable Auto Fishing",
@@ -960,17 +1081,17 @@ FishingTab:CreateToggle({
 })
 
 -- Perfect Cast Fishing Section
-FishingTab:CreateSection("Perfect Cast Fishing")
+FishingTab:CreateSection("🎯 Perfect Cast Fishing")
 
 FishingTab:CreateToggle({
-    Name = "Perfect Cast Fishing",
+    Name = "Enable Perfect Cast",
     CurrentValue = false,
     Flag = "PerfectCastToggle",
     Callback = function(state)
         if state then
-            StartManualFishing()
+            StartPerfectCastFishing()
         else
-            StopManualFishing()
+            StopPerfectCastFishing()
         end
     end
 })
@@ -989,32 +1110,22 @@ FishingTab:CreateSlider({
 
 FishingTab:CreateButton({
     Name = "Single Cast (Current Power)",
-    Callback = function()
-        if not manualFishingEnabled then
-            CastFishingRod(currentFishingPower)
-            Notify({
-                Title = "Single Cast", 
-                Content = "Casted with " .. math.floor(currentFishingPower * 100) .. "% power",
-                Duration = 2
-            })
-        else
-            Notify({
-                Title = "Warning", 
-                Content = "Stop Perfect Cast Fishing first for single cast",
-                Duration = 3
-            })
-        end
-    end
+    Callback = SingleCast
+})
+
+FishingTab:CreateParagraph({
+    Title = "Perfect Cast Features:",
+    Content = "• Auto casting dengan power tertentu\n• Auto complete minigame\n• Power control (10%-100%)\n• Auto retry jika gagal\n• Combo dengan Auto Fishing"
 })
 
 -- Quick Actions Section
-FishingTab:CreateSection("Quick Actions")
+FishingTab:CreateSection("⚡ Quick Actions")
 
 FishingTab:CreateButton({
     Name = "Start All Fishing Modes",
     Callback = function()
         StartAutoFish()
-        StartManualFishing()
+        StartPerfectCastFishing()
         Notify({Title = "Fishing", Content = "All fishing modes activated", Duration = 3})
     end
 })
@@ -1023,7 +1134,7 @@ FishingTab:CreateButton({
     Name = "Stop All Fishing",
     Callback = function()
         StopAutoFish()
-        StopManualFishing()
+        StopPerfectCastFishing()
         Notify({Title = "Fishing", Content = "All fishing modes stopped", Duration = 3})
     end
 })
@@ -1033,11 +1144,11 @@ local BypassTab = Window:CreateTab("Bypass", "radar")
 
 BypassTab:CreateParagraph({
     Title = "Game Bypass Features",
-    Content = "Advanced features to enhance gameplay"
+    Content = "Advanced features to enhance gameplay and automation"
 })
 
 -- Fishing Radar Section
-BypassTab:CreateSection("Fishing Radar")
+BypassTab:CreateSection("📡 Fishing Radar")
 
 BypassTab:CreateToggle({
     Name = "Fishing Radar",
@@ -1058,7 +1169,7 @@ BypassTab:CreateButton({
 })
 
 -- Diving Gear Section
-BypassTab:CreateSection("Diving Gear")
+BypassTab:CreateSection("🤿 Diving Gear")
 
 BypassTab:CreateToggle({
     Name = "Diving Gear",
@@ -1079,7 +1190,7 @@ BypassTab:CreateButton({
 })
 
 -- Auto Sell Section
-BypassTab:CreateSection("Auto Sell Fish")
+BypassTab:CreateSection("💰 Auto Sell Fish")
 
 BypassTab:CreateToggle({
     Name = "Auto Sell Fish",
@@ -1112,7 +1223,7 @@ BypassTab:CreateButton({
 })
 
 -- Quick Actions Section
-BypassTab:CreateSection("Quick Actions")
+BypassTab:CreateSection("⚡ Quick Actions")
 
 BypassTab:CreateButton({
     Name = "Enable All Bypass",
@@ -1138,7 +1249,7 @@ BypassTab:CreateButton({
 local PlayerConfigTab = Window:CreateTab("Player Config", "settings")
 
 -- Performance Section
-PlayerConfigTab:CreateSection("Performance")
+PlayerConfigTab:CreateSection("🚀 Performance")
 
 PlayerConfigTab:CreateToggle({
     Name = "Ultra Anti Lag",
@@ -1154,7 +1265,7 @@ PlayerConfigTab:CreateToggle({
 })
 
 -- Position Section
-PlayerConfigTab:CreateSection("Position")
+PlayerConfigTab:CreateSection("📍 Position")
 
 PlayerConfigTab:CreateButton({
     Name = "Save Position",
@@ -1180,7 +1291,7 @@ PlayerConfigTab:CreateToggle({
 })
 
 -- Quick Actions
-PlayerConfigTab:CreateSection("Quick Actions")
+PlayerConfigTab:CreateSection("⚡ Quick Actions")
 
 PlayerConfigTab:CreateButton({
     Name = "Max Performance",
@@ -1195,7 +1306,7 @@ local TeleportTab = Window:CreateTab("Teleportation", "map-pin")
 
 TeleportTab:CreateParagraph({
     Title = "Location Teleport",
-    Content = "Quick teleport to fishing spots"
+    Content = "Quick teleport to fishing spots and optimal locations"
 })
 
 TeleportTab:CreateDropdown({
@@ -1235,7 +1346,7 @@ TeleportTab:CreateToggle({
 -- ========== PLAYER MANAGEMENT TAB ==========
 local PlayerTab = Window:CreateTab("Player Stats", "user")
 
-PlayerTab:CreateSection("Movement")
+PlayerTab:CreateSection("🏃 Movement")
 
 PlayerTab:CreateSlider({
     Name = "Walk Speed",
@@ -1281,7 +1392,7 @@ SettingsTab:CreateButton({
     Name = "Unload Hub",
     Callback = function()
         StopAutoFish()
-        StopManualFishing()
+        StopPerfectCastFishing()
         StopLockPosition()
         DisableAntiLag()
         StopFishingRadar()
@@ -1338,7 +1449,7 @@ Rayfield:LoadConfiguration()
 -- Initial Notification
 Notify({
     Title = "Anggazyy Hub Ready", 
-    Content = "System initialized successfully",
+    Content = "System initialized successfully\n• Auto Fishing System\n• Perfect Cast Fishing\n• Advanced Bypass Features\n• Performance Optimization",
     Duration = 4
 })
 
