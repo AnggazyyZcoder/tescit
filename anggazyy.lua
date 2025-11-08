@@ -17,6 +17,7 @@ local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local UserGameSettings = UserSettings():GetService("UserGameSettings")
 local LocalPlayer = Players.LocalPlayer
 
 local autoFishEnabled = false
@@ -31,6 +32,7 @@ local savePositionEnabled = false
 local lockPositionEnabled = false
 local lastSavedPosition = nil
 local lockPositionLoop = nil
+local originalGraphicsSettings = {}
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -136,15 +138,6 @@ local function StartAutoFish()
         while autoFishEnabled do
             pcall(function()
                 SafeInvokeAutoFishing(true)
-                
-                if ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Replion") then
-                    pcall(function()
-                        local Replion = require(ReplicatedStorage.Packages.Replion)
-                        if Replion and Replion.Client and type(Replion.Client.WaitReplion) == "function" then
-                            local Data = Replion.Client:WaitReplion("Data")
-                        end
-                    end)
-                end
             end)
             task.wait(4)
         end
@@ -167,108 +160,164 @@ local function StopAutoFish()
 end
 
 -- =============================================================================
--- PLAYER CONFIGURATION SYSTEM
+-- ENHANCED ANTI LAG SYSTEM
 -- =============================================================================
 
--- Anti Lag System
+-- Save original graphics settings
+local function SaveOriginalGraphics()
+    originalGraphicsSettings = {
+        GraphicsQualityLevel = UserGameSettings.GraphicsQualityLevel,
+        SavedQualityLevel = UserGameSettings.SavedQualityLevel,
+        MasterVolume = Lighting.GlobalShadows,
+        Brightness = Lighting.Brightness,
+        FogEnd = Lighting.FogEnd,
+        ShadowSoftness = Lighting.ShadowSoftness,
+        EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale,
+        EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale
+    }
+end
+
+-- Enhanced Anti Lag System
 local function EnableAntiLag()
     if antiLagEnabled then return end
+    
+    SaveOriginalGraphics()
     antiLagEnabled = true
     
-    -- Reduce graphics settings
+    -- Extreme graphics optimization
     pcall(function()
-        -- Lighting settings
+        -- Graphics quality settings
+        UserGameSettings.GraphicsQualityLevel = 1
+        UserGameSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
+        
+        -- Lighting optimization
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 999999
         Lighting.Brightness = 2
+        Lighting.ShadowSoftness = 0
+        Lighting.EnvironmentDiffuseScale = 0
+        Lighting.EnvironmentSpecularScale = 0
+        Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
         
-        -- Terrain settings
+        -- Terrain optimization
         if workspace.Terrain then
+            workspace.Terrain.Decoration = false
             workspace.Terrain.WaterReflectance = 0
-            workspace.Terrain.WaterTransparency = 0
+            workspace.Terrain.WaterTransparency = 1
             workspace.Terrain.WaterWaveSize = 0
             workspace.Terrain.WaterWaveSpeed = 0
         end
         
-        -- Reduce particle effects
+        -- Disable all particles and effects
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            if obj:IsA("ParticleEmitter") then
                 obj.Enabled = false
+            elseif obj:IsA("Fire") then
+                obj.Enabled = false
+            elseif obj:IsA("Smoke") then
+                obj.Enabled = false
+            elseif obj:IsA("Sparkles") then
+                obj.Enabled = false
+            elseif obj:IsA("Beam") then
+                obj.Enabled = false
+            elseif obj:IsA("Trail") then
+                obj.Enabled = false
+            elseif obj:IsA("Sound") and not obj:FindFirstAncestorWhichIsA("Player") then
+                obj:Stop()
             end
         end
+        
+        -- Reduce texture quality
+        settings().Rendering.QualityLevel = 1
     end)
     
-    Notify({Title = "Anti Lag", Content = "Graphics optimization enabled", Duration = 3})
+    Notify({Title = "Anti Lag", Content = "Extreme graphics optimization enabled", Duration = 3})
 end
 
 local function DisableAntiLag()
     if not antiLagEnabled then return end
     antiLagEnabled = false
     
-    -- Restore graphics settings
+    -- Restore original graphics settings
     pcall(function()
-        Lighting.GlobalShadows = true
-        Lighting.FogEnd = 100000
-        Lighting.Brightness = 1
+        if originalGraphicsSettings.GraphicsQualityLevel then
+            UserGameSettings.GraphicsQualityLevel = originalGraphicsSettings.GraphicsQualityLevel
+        end
+        if originalGraphicsSettings.SavedQualityLevel then
+            UserGameSettings.SavedQualityLevel = originalGraphicsSettings.SavedQualityLevel
+        end
+        if originalGraphicsSettings.MasterVolume ~= nil then
+            Lighting.GlobalShadows = originalGraphicsSettings.MasterVolume
+        end
+        if originalGraphicsSettings.Brightness then
+            Lighting.Brightness = originalGraphicsSettings.Brightness
+        end
+        if originalGraphicsSettings.FogEnd then
+            Lighting.FogEnd = originalGraphicsSettings.FogEnd
+        end
+        if originalGraphicsSettings.ShadowSoftness then
+            Lighting.ShadowSoftness = originalGraphicsSettings.ShadowSoftness
+        end
+        if originalGraphicsSettings.EnvironmentDiffuseScale then
+            Lighting.EnvironmentDiffuseScale = originalGraphicsSettings.EnvironmentDiffuseScale
+        end
+        if originalGraphicsSettings.EnvironmentSpecularScale then
+            Lighting.EnvironmentSpecularScale = originalGraphicsSettings.EnvironmentSpecularScale
+        end
         
+        -- Restore terrain
         if workspace.Terrain then
+            workspace.Terrain.Decoration = true
             workspace.Terrain.WaterReflectance = 0.5
             workspace.Terrain.WaterTransparency = 0.5
             workspace.Terrain.WaterWaveSize = 0.5
             workspace.Terrain.WaterWaveSpeed = 10
         end
         
-        -- Restore particle effects
+        -- Restore particles and effects
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Beam") or obj:IsA("Trail") then
                 obj.Enabled = true
             end
         end
+        
+        -- Restore texture quality
+        settings().Rendering.QualityLevel = 10
     end)
     
-    Notify({Title = "Anti Lag", Content = "Graphics optimization disabled", Duration = 3})
+    Notify({Title = "Anti Lag", Content = "Graphics settings restored", Duration = 3})
 end
 
--- Save Position System
+-- Position Management System
 local function SaveCurrentPosition()
     local character = LocalPlayer.Character
     if character and character:FindFirstChild("HumanoidRootPart") then
         lastSavedPosition = character.HumanoidRootPart.Position
         Notify({
             Title = "Position Saved", 
-            Content = string.format("Position saved: X:%.0f Y:%.0f Z:%.0f", 
-                lastSavedPosition.X, lastSavedPosition.Y, lastSavedPosition.Z),
-            Duration = 3
+            Content = string.format("Position saved successfully"),
+            Duration = 2
         })
         return true
-    else
-        Notify({Title = "Save Failed", Content = "Character not found", Duration = 3})
-        return false
     end
+    return false
 end
 
 local function LoadSavedPosition()
     if not lastSavedPosition then
-        Notify({Title = "Load Failed", Content = "No position saved", Duration = 3})
+        Notify({Title = "Load Failed", Content = "No position saved", Duration = 2})
         return false
     end
     
     local character = LocalPlayer.Character
     if character and character:FindFirstChild("HumanoidRootPart") then
         character.HumanoidRootPart.CFrame = CFrame.new(lastSavedPosition)
-        Notify({
-            Title = "Position Loaded", 
-            Content = "Teleported to saved position",
-            Duration = 3
-        })
+        Notify({Title = "Position Loaded", Content = "Teleported to saved position", Duration = 2})
         return true
-    else
-        Notify({Title = "Load Failed", Content = "Character not found", Duration = 3})
-        return false
     end
+    return false
 end
 
--- Lock Position System
 local function StartLockPosition()
     if lockPositionEnabled then return end
     lockPositionEnabled = true
@@ -286,14 +335,13 @@ local function StartLockPosition()
             local currentPos = character.HumanoidRootPart.Position
             local distance = (currentPos - lastSavedPosition).Magnitude
             
-            -- If player moved more than 5 studs, teleport back
-            if distance > 5 then
+            if distance > 3 then
                 character.HumanoidRootPart.CFrame = CFrame.new(lastSavedPosition)
             end
         end
     end)
     
-    Notify({Title = "Position Lock", Content = "Player position locked", Duration = 3})
+    Notify({Title = "Position Lock", Content = "Player position locked", Duration = 2})
 end
 
 local function StopLockPosition()
@@ -305,22 +353,7 @@ local function StopLockPosition()
         lockPositionLoop = nil
     end
     
-    Notify({Title = "Position Lock", Content = "Player position unlocked", Duration = 3})
-end
-
--- Auto-save position when Save Position is enabled
-local function StartAutoSavePosition()
-    if not savePositionEnabled then return end
-    
-    task.spawn(function()
-        while savePositionEnabled do
-            local character = LocalPlayer.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                lastSavedPosition = character.HumanoidRootPart.Position
-            end
-            task.wait(5) -- Save every 5 seconds
-        end
-    end)
+    Notify({Title = "Position Lock", Content = "Player position unlocked", Duration = 2})
 end
 
 -- Coordinate Display System
@@ -379,24 +412,6 @@ local function DestroyCoordinateDisplay()
     end
 end
 
--- Player Information System
-local function GetPlayerInfo()
-    local username = LocalPlayer.Name
-    local displayName = LocalPlayer.DisplayName
-    
-    local playTime = "2h 34m"
-    
-    local jobId = game.JobId
-    local serverLink = "https://roblox.com/games/" .. game.PlaceId .. "?jobId=" .. jobId
-    
-    return {
-        Username = username,
-        DisplayName = displayName,
-        PlayTime = playTime,
-        ServerLink = serverLink
-    }
-end
-
 -- =============================================================================
 -- MAIN WINDOW CREATION
 -- =============================================================================
@@ -421,71 +436,44 @@ local Window = Rayfield:CreateWindow({
 local InfoTab = Window:CreateTab("Information", "info")
 
 InfoTab:CreateParagraph({
-    Title = "Welcome to Anggazyy Hub",
-    Content = "Premium fishing automation system with advanced features and modern interface design."
-})
-
-InfoTab:CreateParagraph({
-    Title = "System Overview",
-    Content = "Auto Fishing System • Coordinate Tracking • Player Teleportation • Performance Boosts • Real-time Monitoring • Player Configuration"
-})
-
-InfoTab:CreateParagraph({
-    Title = "Core Features",
-    Content = "• Stable Auto Fishing Algorithm\n• Real-time Coordinate Display\n• Map Teleportation System\n• Player Stat Modification\n• Anti Lag System\n• Position Management\n• Professional User Interface"
+    Title = "Anggazyy Hub - Fish It",
+    Content = "Premium fishing automation with performance optimization"
 })
 
 -- ========== AUTO SYSTEM TAB ==========
 local AutoTab = Window:CreateTab("Automation", "fish")
 
 AutoTab:CreateParagraph({
-    Title = "Auto Fishing Controller",
-    Content = "Enable automated fishing system with optimized performance and server communication."
+    Title = "Auto Fishing System",
+    Content = "Automated fishing with server communication"
 })
 
--- Status display
 statusParagraph = AutoTab:CreateParagraph({
     Title = "Status:",
-    Content = "Status: DISABLED"
+    Content = "DISABLED"
 })
 
 AutoTab:CreateToggle({
-    Name = "Activate Auto Fishing",
+    Name = "Enable Auto Fishing",
     CurrentValue = false,
     Flag = "AutoFishToggle",
     Callback = function(state)
-        if not LocalPlayer then
-            Notify({Title = "System Error", Content = "Player instance not available", Duration = 3})
-            return
-        end
-
         if state then
-            local ok, err = pcall(StartAutoFish)
-            if not ok then
-                Notify({Title = "Activation Failed", Content = tostring(err or "Unknown error"), Duration = 4})
-            end
+            StartAutoFish()
         else
-            local ok, err = pcall(StopAutoFish)
-            if not ok then
-                Notify({Title = "Deactivation Failed", Content = tostring(err or "Unknown error"), Duration = 4})
-            end
+            StopAutoFish()
         end
     end
 })
 
 -- ========== PLAYER CONFIGURATION TAB ==========
-local PlayerConfigTab = Window:CreateTab("Player Configuration", "settings")
+local PlayerConfigTab = Window:CreateTab("Player Config", "settings")
 
-PlayerConfigTab:CreateParagraph({
-    Title = "Player Configuration System",
-    Content = "Advanced player settings for performance optimization and position management."
-})
-
--- Anti Lag Section
-PlayerConfigTab:CreateSection("Performance Optimization")
+-- Performance Section
+PlayerConfigTab:CreateSection("Performance")
 
 PlayerConfigTab:CreateToggle({
-    Name = "Anti Lag Mode",
+    Name = "Ultra Anti Lag",
     CurrentValue = false,
     Flag = "AntiLagToggle",
     Callback = function(state)
@@ -497,45 +485,21 @@ PlayerConfigTab:CreateToggle({
     end
 })
 
-PlayerConfigTab:CreateParagraph({
-    Title = "Anti Lag Information",
-    Content = "Reduces graphics quality for better performance:\n• Disables shadows\n• Reduces water effects\n• Disables particle effects\n• Optimizes lighting"
-})
+-- Position Section
+PlayerConfigTab:CreateSection("Position")
 
--- Position Management Section
-PlayerConfigTab:CreateSection("Position Management")
-
-PlayerConfigTab:CreateToggle({
-    Name = "Auto Save Position",
-    CurrentValue = false,
-    Flag = "SavePositionToggle",
-    Callback = function(state)
-        savePositionEnabled = state
-        if state then
-            StartAutoSavePosition()
-            Notify({Title = "Auto Save", Content = "Auto position saving enabled", Duration = 3})
-        else
-            Notify({Title = "Auto Save", Content = "Auto position saving disabled", Duration = 3})
-        end
-    end
+PlayerConfigTab:CreateButton({
+    Name = "Save Position",
+    Callback = SaveCurrentPosition
 })
 
 PlayerConfigTab:CreateButton({
-    Name = "Save Current Position",
-    Callback = function()
-        SaveCurrentPosition()
-    end
-})
-
-PlayerConfigTab:CreateButton({
-    Name = "Load Saved Position",
-    Callback = function()
-        LoadSavedPosition()
-    end
+    Name = "Load Position", 
+    Callback = LoadSavedPosition
 })
 
 PlayerConfigTab:CreateToggle({
-    Name = "Lock Player Position",
+    Name = "Lock Position",
     CurrentValue = false,
     Flag = "LockPositionToggle",
     Callback = function(state)
@@ -547,29 +511,14 @@ PlayerConfigTab:CreateToggle({
     end
 })
 
-PlayerConfigTab:CreateParagraph({
-    Title = "Position Management Info",
-    Content = "• Auto Save: Saves position every 5 seconds\n• Manual Save: Save current position manually\n• Load Position: Teleport to saved position\n• Lock Position: Prevents moving from saved position"
-})
-
--- Quick Actions Section
+-- Quick Actions
 PlayerConfigTab:CreateSection("Quick Actions")
 
 PlayerConfigTab:CreateButton({
-    Name = "Optimize All Graphics",
+    Name = "Max Performance",
     Callback = function()
         EnableAntiLag()
-        Notify({Title = "Optimization", Content = "All graphics settings optimized", Duration = 3})
-    end
-})
-
-PlayerConfigTab:CreateButton({
-    Name = "Reset All Settings",
-    Callback = function()
-        DisableAntiLag()
-        StopLockPosition()
-        savePositionEnabled = false
-        Notify({Title = "Reset", Content = "All player settings reset", Duration = 3})
+        Notify({Title = "Performance", Content = "Maximum performance enabled", Duration = 2})
     end
 })
 
@@ -577,113 +526,51 @@ PlayerConfigTab:CreateButton({
 local TeleportTab = Window:CreateTab("Teleportation", "map-pin")
 
 TeleportTab:CreateParagraph({
-    Title = "Location Teleportation",
-    Content = "Instant teleportation to premium fishing locations with precise coordinates."
+    Title = "Location Teleport",
+    Content = "Quick teleport to fishing spots"
 })
 
--- Mount Hallow Map Data
-local maps = {
-    {
-        Label = "Mount Hallow", 
-        Value = "Mount Hallow", 
-        Pos = Vector3.new(1819, 12, 3043)
-    }
-}
-
-local defaultMap = maps[1].Value
-
 TeleportTab:CreateDropdown({
-    Name = "Destination Selection",
+    Name = "Select Destination",
     Options = { "Mount Hallow" },
-    CurrentOption = defaultMap,
+    CurrentOption = "Mount Hallow",
     Flag = "MapSelect",
     Callback = function(selected)
         currentSelectedMap = selected
-        Notify({Title = "Location Selected", Content = "Destination: " .. selected, Duration = 2})
     end
 })
 
 TeleportTab:CreateButton({
-    Name = "Execute Teleportation",
+    Name = "Teleport Now",
     Callback = function()
-        if not currentSelectedMap then 
-            currentSelectedMap = defaultMap 
-        end
-        
-        local chosen = maps[1]
-        if chosen and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(chosen.Pos)
-            Notify({
-                Title = "Teleportation Complete", 
-                Content = "Successfully teleported to " .. chosen.Value,
-                Duration = 3
-            })
-        else
-            Notify({
-                Title = "Teleportation Failed", 
-                Content = "Character not ready for teleportation",
-                Duration = 3
-            })
+        local pos = Vector3.new(1819, 12, 3043)
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(pos)
+            Notify({Title = "Teleport", Content = "Teleported to Mount Hallow", Duration = 2})
         end
     end
 })
 
 TeleportTab:CreateToggle({
-    Name = "Display Coordinate Overlay",
+    Name = "Show Coordinates",
     CurrentValue = false,
     Flag = "ShowCoords",
     Callback = function(v)
         if v then
             CreateCoordinateDisplay()
-            Notify({Title = "Display Activated", Content = "Coordinate overlay enabled", Duration = 2})
         else
             DestroyCoordinateDisplay()
-            Notify({Title = "Display Deactivated", Content = "Coordinate overlay disabled", Duration = 2})
         end
     end
 })
 
 -- ========== PLAYER MANAGEMENT TAB ==========
-local PlayerTab = Window:CreateTab("Player Management", "user")
+local PlayerTab = Window:CreateTab("Player Stats", "user")
 
-local playerInfo = GetPlayerInfo()
-
-PlayerTab:CreateParagraph({
-    Title = "Avatar Information",
-    Content = string.format("Username: %s\nDisplay Name: %s", playerInfo.Username, playerInfo.DisplayName)
-})
-
-PlayerTab:CreateParagraph({
-    Title = "Session Statistics",
-    Content = string.format("Current Play Time: %s", playerInfo.PlayTime)
-})
-
--- Server Link with Copy Functionality
-PlayerTab:CreateButton({
-    Name = "Copy Server Link",
-    Callback = function()
-        local serverLink = playerInfo.ServerLink
-        if setclipboard then
-            setclipboard(serverLink)
-            Notify({
-                Title = "Link Copied", 
-                Content = "Server link copied to clipboard",
-                Duration = 3
-            })
-        else
-            Notify({
-                Title = "Copy Failed", 
-                Content = "Clipboard access not available",
-                Duration = 3
-            })
-        end
-    end
-})
-
-PlayerTab:CreateSection("Performance Settings")
+PlayerTab:CreateSection("Movement")
 
 PlayerTab:CreateSlider({
-    Name = "Movement Speed",
+    Name = "Walk Speed",
     Range = {16, 200},
     Increment = 1,
     CurrentValue = 16,
@@ -709,71 +596,47 @@ PlayerTab:CreateSlider({
 })
 
 PlayerTab:CreateButton({
-    Name = "Reset to Default Values",
+    Name = "Reset Movement",
     Callback = function()
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
             LocalPlayer.Character.Humanoid.WalkSpeed = 16
             LocalPlayer.Character.Humanoid.JumpPower = 50
-            Notify({
-                Title = "Values Reset", 
-                Content = "Player stats restored to default",
-                Duration = 2
-            })
+            Notify({Title = "Reset", Content = "Movement reset to default", Duration = 2})
         end
     end
 })
 
 -- ========== SETTINGS TAB ==========
-local SettingsTab = Window:CreateTab("Configuration", "settings")
-
-SettingsTab:CreateParagraph({
-    Title = "System Configuration",
-    Content = "Manage application settings and system utilities."
-})
+local SettingsTab = Window:CreateTab("Settings", "settings")
 
 SettingsTab:CreateButton({
-    Name = "Unload Application",
+    Name = "Unload Hub",
     Callback = function()
-        pcall(function() StopAutoFish() end)
-        pcall(function() StopLockPosition() end)
-        pcall(function() DisableAntiLag() end)
-        pcall(function() Rayfield:Destroy() end)
+        StopAutoFish()
+        StopLockPosition()
+        DisableAntiLag()
         DestroyCoordinateDisplay()
-        Notify({
-            Title = "System Shutdown", 
-            Content = "Application successfully unloaded",
-            Duration = 3
-        })
+        Rayfield:Destroy()
+        Notify({Title = "Unload", Content = "Hub unloaded successfully", Duration = 2})
     end
 })
 
 SettingsTab:CreateButton({
-    Name = "Clean UI Elements",
+    Name = "Clean UI",
     Callback = function()
-        task.spawn(function()
-            for _, obj in ipairs(CoreGui:GetDescendants()) do
-                pcall(function()
-                    if (obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel")) then
-                        local nameLower = (obj.Name or ""):lower()
-                        local textLower = (obj.Text or ""):lower()
-                        if string.find(nameLower, "money") or string.find(textLower, "money") or string.find(nameLower, "100") then
-                            obj.Visible = false
-                        end
+        for _, obj in ipairs(CoreGui:GetDescendants()) do
+            pcall(function()
+                if (obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel")) then
+                    local name = (obj.Name or ""):lower()
+                    local text = (obj.Text or ""):lower()
+                    if string.find(name, "money") or string.find(text, "money") then
+                        obj.Visible = false
                     end
-                end)
-            end
-        end)
-        Notify({
-            Title = "Cleanup Complete", 
-            Content = "UI elements cleaned successfully",
-            Duration = 2
-        })
+                end
+            end)
+        end
+        Notify({Title = "Clean", Content = "UI cleaned", Duration = 2})
     end
-})
-
-SettingsTab:CreateParagraph({
-    Title = "Credits & Information",
-    Content = "Anggazyy Hub • Professional Automation System\nRayfield Interface • Lucide Icons"
 })
 
 -- Enhanced Visual Effects
@@ -798,13 +661,13 @@ pcall(function()
 end)
 
 -- Configuration Loading
-pcall(function() Rayfield:LoadConfiguration() end)
+Rayfield:LoadConfiguration()
 
 -- Initial Notification
 Notify({
-    Title = "Anggazyy Hub Initialized", 
-    Content = "Premium automation system ready\n• Auto Fishing\n• Player Configuration\n• Teleportation\n• Performance Optimization\nPress [K] to toggle interface",
-    Duration = 6
+    Title = "Anggazyy Hub Ready", 
+    Content = "System initialized successfully",
+    Duration = 4
 })
 
 --//////////////////////////////////////////////////////////////////////////////////
