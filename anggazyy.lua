@@ -29,10 +29,6 @@ local AUTO_BUY_ENABLED = false
 local AUTO_BUY_LOOP = nil
 local MERCHANT_ITEMS = {}
 local SELECTED_ITEM = nil
-local merchantTab = nil
-local itemDropdown = nil
-local merchantStatusLabel = nil
-local balanceLabel = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -131,14 +127,6 @@ local function StartAutoFish()
     if statusParagraph then 
         pcall(function() 
             statusParagraph:Set("Status: ACTIVE")
-            -- Update color to green when active
-            for _, element in pairs(Window.UIElements) do
-                if element and element.Type == "Paragraph" and element.Data.Title == "Status:" then
-                    pcall(function()
-                        element.SetTitleColor3(COLOR_ENABLED)
-                    end)
-                end
-            end
         end) 
     end
     Notify({Title = "Auto Fishing", Content = "System activated successfully", Duration = 2})
@@ -168,14 +156,6 @@ local function StopAutoFish()
     if statusParagraph then 
         pcall(function() 
             statusParagraph:Set("Status: DISABLED")
-            -- Update color to red when disabled
-            for _, element in pairs(Window.UIElements) do
-                if element and element.Type == "Paragraph" and element.Data.Title == "Status:" then
-                    pcall(function()
-                        element.SetTitleColor3(COLOR_DISABLED)
-                    end)
-                end
-            end
         end) 
     end
     Notify({Title = "Auto Fishing", Content = "System deactivated", Duration = 2})
@@ -246,10 +226,8 @@ local function GetPlayerInfo()
     local username = LocalPlayer.Name
     local displayName = LocalPlayer.DisplayName
     
-    -- Simulated play time (in real implementation, you would get this from game stats)
     local playTime = "2h 34m"
     
-    -- Server information
     local jobId = game.JobId
     local serverLink = "https://roblox.com/games/" .. game.PlaceId .. "?jobId=" .. jobId
     
@@ -294,6 +272,34 @@ local function LoadMerchantModules()
     end
 end
 
+-- Get Market Data From ID
+local function GetMarketDataFromId(itemId)
+    local modules = LoadMerchantModules()
+    if not modules then return nil end
+    
+    for _, itemData in ipairs(modules.MarketItemData) do
+        if itemData.Id == itemId then
+            return itemData
+        end
+    end
+    return nil
+end
+
+-- Get Item Display Name
+local function GetItemDisplayName(marketData)
+    local modules = LoadMerchantModules()
+    if not modules then return "Unknown Item" end
+    
+    local success, itemData = pcall(function()
+        return modules.ItemUtility.GetItemDataFromItemType(marketData.Type, marketData.Identifier)
+    end)
+    
+    if success and itemData and itemData.Data then
+        return itemData.Data.Name or "Unknown Item"
+    end
+    return "Unknown Item"
+end
+
 -- Get Merchant Items Data
 local function ScanMerchantItems()
     local items = {}
@@ -332,34 +338,6 @@ local function ScanMerchantItems()
     end
     
     return items
-end
-
--- Get Item Display Name
-local function GetItemDisplayName(marketData)
-    local modules = LoadMerchantModules()
-    if not modules then return "Unknown Item" end
-    
-    local success, itemData = pcall(function()
-        return modules.ItemUtility.GetItemDataFromItemType(marketData.Type, marketData.Identifier)
-    end)
-    
-    if success and itemData and itemData.Data then
-        return itemData.Data.Name or "Unknown Item"
-    end
-    return "Unknown Item"
-end
-
--- Get Market Data From ID
-local function GetMarketDataFromId(itemId)
-    local modules = LoadMerchantModules()
-    if not modules then return nil end
-    
-    for _, itemData in ipairs(modules.MarketItemData) do
-        if itemData.Id == itemId then
-            return itemData
-        end
-    end
-    return nil
 end
 
 -- Check if Player Owns Item
@@ -466,9 +444,6 @@ local function StartAutoBuy()
     end
     
     AUTO_BUY_ENABLED = true
-    if merchantStatusLabel then
-        pcall(function() merchantStatusLabel:Set("Status: AUTO BUYING - " .. SELECTED_ITEM.Name) end)
-    end
     
     Notify({
         Title = "Auto Buy Started", 
@@ -478,7 +453,7 @@ local function StartAutoBuy()
     
     AUTO_BUY_LOOP = task.spawn(function()
         local purchaseAttempts = 0
-        local maxAttempts = 50 -- Safety limit
+        local maxAttempts = 50
         
         while AUTO_BUY_ENABLED and purchaseAttempts < maxAttempts do
             local success, message = PurchaseItem(SELECTED_ITEM)
@@ -493,9 +468,6 @@ local function StartAutoBuy()
                 -- Stop if single copy and successful
                 if SELECTED_ITEM.SingleCopy then
                     AUTO_BUY_ENABLED = false
-                    if merchantStatusLabel then
-                        pcall(function() merchantStatusLabel:Set("Status: COMPLETED") end)
-                    end
                     break
                 end
             else
@@ -519,7 +491,7 @@ local function StartAutoBuy()
             end
             
             purchaseAttempts += 1
-            task.wait(1) -- Delay between attempts
+            task.wait(1)
         end
         
         -- Safety stop
@@ -530,11 +502,6 @@ local function StartAutoBuy()
                 Duration = 4
             })
             AUTO_BUY_ENABLED = false
-        end
-        
-        -- Update status
-        if merchantStatusLabel then
-            pcall(function() merchantStatusLabel:Set("Status: READY") end)
         end
     end)
 end
@@ -548,10 +515,6 @@ local function StopAutoBuy()
         AUTO_BUY_LOOP = nil
     end
     
-    if merchantStatusLabel then
-        pcall(function() merchantStatusLabel:Set("Status: STOPPED") end)
-    end
-    
     Notify({
         Title = "Auto Buy Stopped", 
         Content = "Purchase automation stopped",
@@ -562,179 +525,7 @@ end
 -- Refresh Merchant Items
 local function RefreshMerchantItems()
     MERCHANT_ITEMS = ScanMerchantItems()
-    
-    -- Update dropdown if exists
-    if itemDropdown then
-        local itemNames = {"Select an item..."}
-        for _, item in ipairs(MERCHANT_ITEMS) do
-            table.insert(itemNames, item.DisplayName)
-        end
-        
-        pcall(function()
-            itemDropdown:Refresh(itemNames, true)
-        end)
-    end
-    
-    -- Update balance display
-    if balanceLabel then
-        local coins = GetPlayerBalance("Coins")
-        local gems = GetPlayerBalance("Gems")
-        pcall(function()
-            balanceLabel:Set(string.format("Coins: %d | Gems: %d", coins, gems))
-        end)
-    end
-    
     return #MERCHANT_ITEMS
-end
-
--- Create Merchant Tab
-local function CreateMerchantTab()
-    merchantTab = Window:CreateTab("Merchant Auto Buyer", "store")
-    
-    -- Information Section
-    merchantTab:CreateParagraph({
-        Title = "🛍️ Merchant Auto Purchase System",
-        Content = "Automatically purchase items from merchant shop. Supports both in-game currency and Robux items."
-    })
-    
-    -- Balance Display
-    balanceLabel = merchantTab:CreateParagraph({
-        Title = "💰 Player Balance",
-        Content = "Scanning balances..."
-    })
-    
-    -- Status Display
-    merchantStatusLabel = merchantTab:CreateParagraph({
-        Title = "📊 System Status",
-        Content = "Status: READY"
-    })
-    
-    -- Refresh Items Button
-    merchantTab:CreateButton({
-        Name = "🔍 Scan Merchant Items",
-        Callback = function()
-            local itemCount = RefreshMerchantItems()
-            if itemCount > 0 then
-                Notify({
-                    Title = "Merchant Scan Complete", 
-                    Content = string.format("Found %d available items", itemCount),
-                    Duration = 3
-                })
-            else
-                Notify({
-                    Title = "Merchant Scan", 
-                    Content = "No items found or merchant data not available",
-                    Duration = 3
-                })
-            end
-        end
-    })
-    
-    -- Item Selection Dropdown
-    itemDropdown = merchantTab:CreateDropdown({
-        Name = "🎯 Select Item to Purchase",
-        Options = {"Scan items first..."},
-        CurrentOption = "Scan items first...",
-        Flag = "MerchantItemSelect",
-        Callback = function(selected)
-            if selected == "Scan items first..." then return end
-            
-            -- Find the selected item
-            for _, item in ipairs(MERCHANT_ITEMS) do
-                if item.DisplayName == selected then
-                    SELECTED_ITEM = item
-                    Notify({
-                        Title = "Item Selected", 
-                        Content = string.format("Selected: %s", item.Name),
-                        Duration = 2
-                    })
-                    
-                    -- Update status with item info
-                    if merchantStatusLabel then
-                        local ownsText = item.SingleCopy and OwnsLocalItem(item) and " (OWNED)" or ""
-                        pcall(function() 
-                            merchantStatusLabel:Set(string.format("Selected: %s%s", item.Name, ownsText)) 
-                        end)
-                    end
-                    break
-                end
-            end
-        end
-    })
-    
-    -- Single Purchase Button
-    merchantTab:CreateButton({
-        Name = "🛒 Single Purchase",
-        Callback = function()
-            if not SELECTED_ITEM then
-                Notify({Title = "Purchase Error", Content = "Please select an item first", Duration = 3})
-                return
-            end
-            
-            local success, message = PurchaseItem(SELECTED_ITEM)
-            if success then
-                Notify({
-                    Title = "Purchase Successful", 
-                    Content = message,
-                    Duration = 3
-                })
-                -- Refresh balances after purchase
-                RefreshMerchantItems()
-            else
-                Notify({
-                    Title = "Purchase Failed", 
-                    Content = message,
-                    Duration = 4
-                })
-            end
-        end
-    })
-    
-    -- Auto Buy Toggle
-    merchantTab:CreateToggle({
-        Name = "⚡ Enable Auto Buy",
-        CurrentValue = false,
-        Flag = "AutoBuyToggle",
-        Callback = function(state)
-            if state then
-                StartAutoBuy()
-            else
-                StopAutoBuy()
-            end
-        end
-    })
-    
-    -- Auto Buy Information
-    merchantTab:CreateParagraph({
-        Title = "ℹ️ Auto Buy Information",
-        Content = "Auto Buy will continuously attempt to purchase the selected item. Stops when:\n• Item is purchased (for single copy)\n• Insufficient funds\n• Maximum attempts reached\n• Manual stop"
-    })
-    
-    -- Emergency Stop Button
-    merchantTab:CreateButton({
-        Name = "🛑 Emergency Stop",
-        Callback = function()
-            StopAutoBuy()
-            Notify({
-                Title = "Emergency Stop", 
-                Content = "All auto buy operations stopped",
-                Duration = 3
-            })
-        end
-    })
-    
-    -- Initial scan after delay
-    task.spawn(function()
-        task.wait(3)
-        local itemCount = RefreshMerchantItems()
-        if itemCount > 0 then
-            Notify({
-                Title = "Merchant System Ready", 
-                Content = string.format("Loaded %d items automatically", itemCount),
-                Duration = 3
-            })
-        end
-    end)
 end
 
 -- =============================================================================
@@ -745,15 +536,15 @@ end
 local Window = Rayfield:CreateWindow({
     Name = "Anggazyy Hub - Fish It",
     Icon = "fish",
-    LoadingTitle = "Anggazyy Hub Initialization",
-    LoadingSubtitle = "Premium Fishing Automation System",
+    LoadingTitle = "Anggazyy Hub",
+    LoadingSubtitle = "Premium Automation System",
     Theme = "Dark",
     ShowText = "AnggazyyHub",
     ToggleUIKeybind = Enum.KeyCode.K,
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "AnggazyyHubConfig",
-        fileName = "FishIt_Config"
+        FileName = "FishIt_Config"
     }
 })
 
@@ -761,17 +552,17 @@ local Window = Rayfield:CreateWindow({
 local InfoTab = Window:CreateTab("Information", "info")
 
 InfoTab:CreateParagraph({
-    Title = "🎯 Welcome to Anggazyy Hub",
+    Title = "Welcome to Anggazyy Hub",
     Content = "Premium fishing automation system with advanced features and modern interface design."
 })
 
 InfoTab:CreateParagraph({
-    Title = "📋 System Overview",
+    Title = "System Overview",
     Content = "Auto Fishing System • Coordinate Tracking • Player Teleportation • Performance Boosts • Real-time Monitoring • Merchant Auto Buyer"
 })
 
 InfoTab:CreateParagraph({
-    Title = "⚡ Core Features",
+    Title = "Core Features",
     Content = "• Stable Auto Fishing Algorithm\n• Real-time Coordinate Display\n• Map Teleportation System\n• Player Stat Modification\n• Merchant Auto Purchase\n• Professional User Interface"
 })
 
@@ -783,25 +574,11 @@ AutoTab:CreateParagraph({
     Content = "Enable automated fishing system with optimized performance and server communication."
 })
 
--- Status display with color coding
+-- Status display
 statusParagraph = AutoTab:CreateParagraph({
     Title = "Status:",
     Content = "Status: DISABLED"
 })
-
--- Initialize status color
-task.spawn(function()
-    task.wait(1)
-    if statusParagraph then
-        pcall(function()
-            for _, element in pairs(Window.UIElements) do
-                if element and element.Type == "Paragraph" and element.Data.Title == "Status:" then
-                    element.SetTitleColor3(COLOR_DISABLED)
-                end
-            end
-        end)
-    end
-end)
 
 AutoTab:CreateToggle({
     Name = "Activate Auto Fishing",
@@ -827,13 +604,147 @@ AutoTab:CreateToggle({
     end
 })
 
-AutoTab:CreateParagraph({
-    Title = "System Information",
-    Content = "Status indicator shows real-time system state. Green: Active | Red: Inactive"
+-- ========== MERCHANT TAB ==========
+local MerchantTab = Window:CreateTab("Merchant Auto Buyer", "store")
+
+MerchantTab:CreateParagraph({
+    Title = "Merchant Auto Purchase System",
+    Content = "Automatically purchase items from merchant shop. Supports both in-game currency and Robux items."
 })
 
--- ========== MERCHANT TAB ==========
-CreateMerchantTab()
+-- Balance Display
+local balanceParagraph = MerchantTab:CreateParagraph({
+    Title = "Player Balance",
+    Content = "Coins: 0 | Gems: 0"
+})
+
+-- Refresh Items Button
+MerchantTab:CreateButton({
+    Name = "Scan Merchant Items",
+    Callback = function()
+        local itemCount = RefreshMerchantItems()
+        if itemCount > 0 then
+            -- Update balance
+            local coins = GetPlayerBalance("Coins")
+            local gems = GetPlayerBalance("Gems")
+            balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
+            
+            Notify({
+                Title = "Merchant Scan Complete", 
+                Content = string.format("Found %d available items", itemCount),
+                Duration = 3
+            })
+        else
+            Notify({
+                Title = "Merchant Scan", 
+                Content = "No items found or merchant data not available",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Item Selection Dropdown
+local itemOptions = {"Scan items first..."}
+local itemDropdown = MerchantTab:CreateDropdown({
+    Name = "Select Item to Purchase",
+    Options = itemOptions,
+    CurrentOption = "Scan items first...",
+    Flag = "MerchantItemSelect",
+    Callback = function(selected)
+        if selected == "Scan items first..." then return end
+        
+        for _, item in ipairs(MERCHANT_ITEMS) do
+            if item.DisplayName == selected then
+                SELECTED_ITEM = item
+                Notify({
+                    Title = "Item Selected", 
+                    Content = string.format("Selected: %s", item.Name),
+                    Duration = 2
+                })
+                break
+            end
+        end
+    end
+})
+
+-- Update dropdown after scan
+local function UpdateItemDropdown()
+    local newOptions = {"Select an item..."}
+    for _, item in ipairs(MERCHANT_ITEMS) do
+        table.insert(newOptions, item.DisplayName)
+    end
+    itemDropdown:Refresh(newOptions, true)
+end
+
+-- Single Purchase Button
+MerchantTab:CreateButton({
+    Name = "Single Purchase",
+    Callback = function()
+        if not SELECTED_ITEM then
+            Notify({Title = "Purchase Error", Content = "Please select an item first", Duration = 3})
+            return
+        end
+        
+        local success, message = PurchaseItem(SELECTED_ITEM)
+        if success then
+            Notify({
+                Title = "Purchase Successful", 
+                Content = message,
+                Duration = 3
+            })
+            -- Refresh balances after purchase
+            local coins = GetPlayerBalance("Coins")
+            local gems = GetPlayerBalance("Gems")
+            balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
+        else
+            Notify({
+                Title = "Purchase Failed", 
+                Content = message,
+                Duration = 4
+            })
+        end
+    end
+})
+
+-- Auto Buy Toggle
+MerchantTab:CreateToggle({
+    Name = "Enable Auto Buy",
+    CurrentValue = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(state)
+        if state then
+            StartAutoBuy()
+        else
+            StopAutoBuy()
+        end
+    end
+})
+
+-- Emergency Stop Button
+MerchantTab:CreateButton({
+    Name = "Emergency Stop",
+    Callback = function()
+        StopAutoBuy()
+        Notify({
+            Title = "Emergency Stop", 
+            Content = "All auto buy operations stopped",
+            Duration = 3
+        })
+    end
+})
+
+-- Auto scan on tab open
+task.spawn(function()
+    task.wait(3)
+    local itemCount = RefreshMerchantItems()
+    if itemCount > 0 then
+        UpdateItemDropdown()
+        local coins = GetPlayerBalance("Coins")
+        local gems = GetPlayerBalance("Gems")
+        balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
+    end
+end)
 
 -- ========== TELEPORTATION TAB ==========
 local TeleportTab = Window:CreateTab("Teleportation", "map-pin")
@@ -872,7 +783,7 @@ TeleportTab:CreateButton({
             currentSelectedMap = defaultMap 
         end
         
-        local chosen = maps[1] -- Mount Hallow
+        local chosen = maps[1]
         if chosen and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(chosen.Pos)
             Notify({
@@ -908,24 +819,21 @@ TeleportTab:CreateToggle({
 -- ========== PLAYER MANAGEMENT TAB ==========
 local PlayerTab = Window:CreateTab("Player Management", "user")
 
--- Player Information Section
-PlayerTab:CreateSection("Player Profile")
-
 local playerInfo = GetPlayerInfo()
 
 PlayerTab:CreateParagraph({
-    Title = "👤 Avatar Information",
+    Title = "Avatar Information",
     Content = string.format("Username: %s\nDisplay Name: %s", playerInfo.Username, playerInfo.DisplayName)
 })
 
 PlayerTab:CreateParagraph({
-    Title = "⏰ Session Statistics",
+    Title = "Session Statistics",
     Content = string.format("Current Play Time: %s", playerInfo.PlayTime)
 })
 
 -- Server Link with Copy Functionality
 PlayerTab:CreateButton({
-    Name = "📋 Copy Server Link",
+    Name = "Copy Server Link",
     Callback = function()
         local serverLink = playerInfo.ServerLink
         if setclipboard then
@@ -944,8 +852,6 @@ PlayerTab:CreateButton({
         end
     end
 })
-
-PlayerTab:CreateSection("Performance Settings")
 
 PlayerTab:CreateSlider({
     Name = "Movement Speed",
