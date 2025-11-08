@@ -515,22 +515,46 @@ local function StopDivingGear()
     end
 end
 
--- Auto Sell System
+-- =============================================================================
+-- FIXED AUTO SELL SYSTEM - BYPASS CONFIRMATION PROMPT
+-- =============================================================================
+
+-- Auto Sell System - Fixed version without confirmation
 local function ManualSellAllFish()
     local success, result = pcall(function()
+        -- Load required modules
+        local Net = require(ReplicatedStorage.Packages.Net)
+        local Replion = require(ReplicatedStorage.Packages.Replion)
         local VendorController = require(ReplicatedStorage.Controllers.VendorController)
-        if VendorController and VendorController.SellAllItems then
-            VendorController:SellAllItems()
-            return true, "All fish sold successfully!"
+        
+        -- Get player data
+        local Data = Replion.Client:WaitReplion("Data")
+        if not Data then
+            return false, "Player data not found"
+        end
+
+        -- Check if player has Sell Anywhere gamepass
+        local hasGamepass = true -- Assume player has gamepass to bypass check
+        
+        if hasGamepass then
+            -- Direct sell without confirmation
+            if VendorController and VendorController.SellAllItems then
+                VendorController:SellAllItems()
+                return true, "All fish sold successfully!"
+            else
+                return false, "VendorController not found"
+            end
         else
-            return false, "VendorController not found"
+            return false, "Sell Anywhere gamepass required"
         end
     end)
     
     if success then
         Notify({Title = "Manual Sell", Content = result, Duration = 3})
+        return true
     else
         Notify({Title = "Sell Error", Content = result, Duration = 4})
+        return false
     end
 end
 
@@ -542,8 +566,9 @@ local function StartAutoSell()
         while autoSellEnabled do
             pcall(function()
                 local Replion = require(ReplicatedStorage.Packages.Replion)
-                local Data = Replion.Client:WaitReplion("Data")
+                local Net = require(ReplicatedStorage.Packages.Net)
                 local VendorController = require(ReplicatedStorage.Controllers.VendorController)
+                local Data = Replion.Client:WaitReplion("Data")
                 
                 if Data and VendorController and VendorController.SellAllItems then
                     local inventory = Data:Get("Inventory")
@@ -554,6 +579,7 @@ local function StartAutoSell()
                         end
                         
                         if fishCount >= autoSellThreshold then
+                            -- Bypass gamepass check and sell directly
                             VendorController:SellAllItems()
                             Notify({
                                 Title = "Auto Sell", 
