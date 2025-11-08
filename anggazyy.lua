@@ -36,6 +36,7 @@ local originalGraphicsSettings = {}
 
 -- Bypass Variables
 local fishingRadarEnabled = false
+local divingGearEnabled = false
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -360,7 +361,7 @@ local function StopLockPosition()
 end
 
 -- =============================================================================
--- BYPASS SYSTEM - FISHING RADAR
+-- BYPASS SYSTEM - FISHING RADAR & DIVING GEAR
 -- =============================================================================
 
 -- Fishing Radar System
@@ -423,6 +424,81 @@ local function StopFishingRadar()
     end
 end
 
+-- Diving Gear System
+local function ToggleDivingGear()
+    local success, result = pcall(function()
+        -- Load required modules
+        local Net = require(ReplicatedStorage.Packages.Net)
+        local Replion = require(ReplicatedStorage.Packages.Replion)
+        local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+        
+        -- Get diving gear data
+        local DivingGear = ItemUtility.GetItemDataFromItemType("Gears", "Diving Gear")
+        if not DivingGear then
+            return false, "Diving Gear tidak ditemukan!"
+        end
+
+        -- Get player data
+        local Data = Replion.Client:WaitReplion("Data")
+        if not Data then
+            return false, "Data Replion tidak ditemukan!"
+        end
+
+        -- Get remote functions
+        local UnequipOxygenTank = Net:RemoteFunction("UnequipOxygenTank")
+        local EquipOxygenTank = Net:RemoteFunction("EquipOxygenTank")
+
+        -- Check current equipment state
+        local EquippedId = Data:Get("EquippedOxygenTankId")
+        local isEquipped = EquippedId == DivingGear.Data.Id
+        local success
+
+        -- Toggle equipment
+        if isEquipped then
+            success = UnequipOxygenTank:InvokeServer()
+        else
+            success = EquipOxygenTank:InvokeServer(DivingGear.Data.Id)
+        end
+
+        if success then
+            divingGearEnabled = not isEquipped
+            return true, "Diving Gear: " .. (not isEquipped and "ON" or "OFF")
+        else
+            return false, "Failed to toggle diving gear"
+        end
+    end)
+    
+    if success then
+        return true, result
+    else
+        return false, "Error: " .. tostring(result)
+    end
+end
+
+local function StartDivingGear()
+    if divingGearEnabled then return end
+    
+    local success, message = ToggleDivingGear()
+    if success then
+        divingGearEnabled = true
+        Notify({Title = "Diving Gear", Content = message, Duration = 3})
+    else
+        Notify({Title = "Diving Gear Error", Content = message, Duration = 4})
+    end
+end
+
+local function StopDivingGear()
+    if not divingGearEnabled then return end
+    
+    local success, message = ToggleDivingGear()
+    if success then
+        divingGearEnabled = false
+        Notify({Title = "Diving Gear", Content = message, Duration = 3})
+    else
+        Notify({Title = "Diving Gear Error", Content = message, Duration = 4})
+    end
+end
+
 -- Auto Radar Toggle with safety
 local function SafeToggleRadar()
     local success, message = ToggleFishingRadar()
@@ -430,6 +506,16 @@ local function SafeToggleRadar()
         Notify({Title = "Fishing Radar", Content = message, Duration = 3})
     else
         Notify({Title = "Radar Error", Content = message, Duration = 4})
+    end
+end
+
+-- Auto Diving Gear Toggle with safety
+local function SafeToggleDivingGear()
+    local success, message = ToggleDivingGear()
+    if success then
+        Notify({Title = "Diving Gear", Content = message, Duration = 3})
+    else
+        Notify({Title = "Diving Gear Error", Content = message, Duration = 4})
     end
 end
 
@@ -572,9 +658,25 @@ BypassTab:CreateButton({
     Callback = SafeToggleRadar
 })
 
-BypassTab:CreateParagraph({
-    Title = "Radar Info",
-    Content = "Shows fishing regions on minimap"
+-- Diving Gear Section
+BypassTab:CreateSection("Diving Gear")
+
+BypassTab:CreateToggle({
+    Name = "Diving Gear",
+    CurrentValue = false,
+    Flag = "DivingGearToggle",
+    Callback = function(state)
+        if state then
+            StartDivingGear()
+        else
+            StopDivingGear()
+        end
+    end
+})
+
+BypassTab:CreateButton({
+    Name = "Toggle Diving Gear",
+    Callback = SafeToggleDivingGear
 })
 
 -- Quick Actions Section
@@ -584,6 +686,7 @@ BypassTab:CreateButton({
     Name = "Enable All Bypass",
     Callback = function()
         StartFishingRadar()
+        StartDivingGear()
         Notify({Title = "Bypass", Content = "All bypass features enabled", Duration = 3})
     end
 })
@@ -592,6 +695,7 @@ BypassTab:CreateButton({
     Name = "Disable All Bypass",
     Callback = function()
         StopFishingRadar()
+        StopDivingGear()
         Notify({Title = "Bypass", Content = "All bypass features disabled", Duration = 3})
     end
 })
@@ -746,6 +850,7 @@ SettingsTab:CreateButton({
         StopLockPosition()
         DisableAntiLag()
         StopFishingRadar()
+        StopDivingGear()
         DestroyCoordinateDisplay()
         Rayfield:Destroy()
         Notify({Title = "Unload", Content = "Hub unloaded successfully", Duration = 2})
