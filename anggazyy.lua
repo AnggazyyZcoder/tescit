@@ -15,7 +15,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 
 local autoFishEnabled = false
@@ -24,11 +25,12 @@ local coordinateGui = nil
 local statusParagraph = nil
 local currentSelectedMap = nil
 
--- Merchant Auto Buyer Variables
-local AUTO_BUY_ENABLED = false
-local AUTO_BUY_LOOP = nil
-local MERCHANT_ITEMS = {}
-local SELECTED_ITEM = nil
+-- Player Configuration Variables
+local antiLagEnabled = false
+local savePositionEnabled = false
+local lockPositionEnabled = false
+local lastSavedPosition = nil
+local lockPositionLoop = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -164,6 +166,163 @@ local function StopAutoFish()
     end)
 end
 
+-- =============================================================================
+-- PLAYER CONFIGURATION SYSTEM
+-- =============================================================================
+
+-- Anti Lag System
+local function EnableAntiLag()
+    if antiLagEnabled then return end
+    antiLagEnabled = true
+    
+    -- Reduce graphics settings
+    pcall(function()
+        -- Lighting settings
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 999999
+        Lighting.Brightness = 2
+        
+        -- Terrain settings
+        if workspace.Terrain then
+            workspace.Terrain.WaterReflectance = 0
+            workspace.Terrain.WaterTransparency = 0
+            workspace.Terrain.WaterWaveSize = 0
+            workspace.Terrain.WaterWaveSpeed = 0
+        end
+        
+        -- Reduce particle effects
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+        end
+    end)
+    
+    Notify({Title = "Anti Lag", Content = "Graphics optimization enabled", Duration = 3})
+end
+
+local function DisableAntiLag()
+    if not antiLagEnabled then return end
+    antiLagEnabled = false
+    
+    -- Restore graphics settings
+    pcall(function()
+        Lighting.GlobalShadows = true
+        Lighting.FogEnd = 100000
+        Lighting.Brightness = 1
+        
+        if workspace.Terrain then
+            workspace.Terrain.WaterReflectance = 0.5
+            workspace.Terrain.WaterTransparency = 0.5
+            workspace.Terrain.WaterWaveSize = 0.5
+            workspace.Terrain.WaterWaveSpeed = 10
+        end
+        
+        -- Restore particle effects
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = true
+            end
+        end
+    end)
+    
+    Notify({Title = "Anti Lag", Content = "Graphics optimization disabled", Duration = 3})
+end
+
+-- Save Position System
+local function SaveCurrentPosition()
+    local character = LocalPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        lastSavedPosition = character.HumanoidRootPart.Position
+        Notify({
+            Title = "Position Saved", 
+            Content = string.format("Position saved: X:%.0f Y:%.0f Z:%.0f", 
+                lastSavedPosition.X, lastSavedPosition.Y, lastSavedPosition.Z),
+            Duration = 3
+        })
+        return true
+    else
+        Notify({Title = "Save Failed", Content = "Character not found", Duration = 3})
+        return false
+    end
+end
+
+local function LoadSavedPosition()
+    if not lastSavedPosition then
+        Notify({Title = "Load Failed", Content = "No position saved", Duration = 3})
+        return false
+    end
+    
+    local character = LocalPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.CFrame = CFrame.new(lastSavedPosition)
+        Notify({
+            Title = "Position Loaded", 
+            Content = "Teleported to saved position",
+            Duration = 3
+        })
+        return true
+    else
+        Notify({Title = "Load Failed", Content = "Character not found", Duration = 3})
+        return false
+    end
+end
+
+-- Lock Position System
+local function StartLockPosition()
+    if lockPositionEnabled then return end
+    lockPositionEnabled = true
+    
+    local character = LocalPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        lastSavedPosition = character.HumanoidRootPart.Position
+    end
+    
+    lockPositionLoop = RunService.Heartbeat:Connect(function()
+        if not lockPositionEnabled then return end
+        
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") and lastSavedPosition then
+            local currentPos = character.HumanoidRootPart.Position
+            local distance = (currentPos - lastSavedPosition).Magnitude
+            
+            -- If player moved more than 5 studs, teleport back
+            if distance > 5 then
+                character.HumanoidRootPart.CFrame = CFrame.new(lastSavedPosition)
+            end
+        end
+    end)
+    
+    Notify({Title = "Position Lock", Content = "Player position locked", Duration = 3})
+end
+
+local function StopLockPosition()
+    if not lockPositionEnabled then return end
+    lockPositionEnabled = false
+    
+    if lockPositionLoop then
+        lockPositionLoop:Disconnect()
+        lockPositionLoop = nil
+    end
+    
+    Notify({Title = "Position Lock", Content = "Player position unlocked", Duration = 3})
+end
+
+-- Auto-save position when Save Position is enabled
+local function StartAutoSavePosition()
+    if not savePositionEnabled then return end
+    
+    task.spawn(function()
+        while savePositionEnabled do
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                lastSavedPosition = character.HumanoidRootPart.Position
+            end
+            task.wait(5) -- Save every 5 seconds
+        end
+    end)
+end
+
 -- Coordinate Display System
 local function CreateCoordinateDisplay()
     if coordinateGui and coordinateGui.Parent then coordinateGui:Destroy() end
@@ -239,189 +398,6 @@ local function GetPlayerInfo()
 end
 
 -- =============================================================================
--- MERCHANT AUTO BUYER SYSTEM - SIMPLE & WORKING VERSION
--- =============================================================================
-
--- Simple function to get merchant items
-local function ShowShopItems()
-    MERCHANT_ITEMS = {}
-    
-    -- Try to get merchant data from Replion
-    local success, result = pcall(function()
-        local Replion = require(ReplicatedStorage.Packages.Replion)
-        local merchantData = Replion.Client:WaitReplion("Merchant")
-        local itemIds = merchantData:GetExpect("Items") or {}
-        
-        -- Get MarketItemData for item details
-        local MarketItemData = require(ReplicatedStorage.Shared.MarketItemData)
-        local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
-        
-        for _, itemId in ipairs(itemIds) do
-            for _, marketItem in ipairs(MarketItemData) do
-                if marketItem.Id == itemId and not marketItem.SkinCrate then
-                    local itemName = "Unknown Item"
-                    local itemData = ItemUtility.GetItemDataFromItemType(marketItem.Type, marketItem.Identifier)
-                    if itemData and itemData.Data then
-                        itemName = itemData.Data.Name or "Unknown Item"
-                    end
-                    
-                    table.insert(MERCHANT_ITEMS, {
-                        Id = itemId,
-                        Name = itemName,
-                        Price = marketItem.Price or 0,
-                        Currency = marketItem.Currency or "Coins",
-                        DisplayName = itemName .. " - " .. tostring(marketItem.Price or 0) .. " " .. (marketItem.Currency or "Coins")
-                    })
-                    break
-                end
-            end
-        end
-        return #itemIds
-    end)
-    
-    if not success then
-        -- Fallback: Add some sample items if scanning fails
-        table.insert(MERCHANT_ITEMS, {
-            Id = 1,
-            Name = "Fishing Rod Basic",
-            Price = 100,
-            Currency = "Coins",
-            DisplayName = "Fishing Rod Basic - 100 Coins"
-        })
-        table.insert(MERCHANT_ITEMS, {
-            Id = 2, 
-            Name = "Advanced Bait",
-            Price = 50,
-            Currency = "Coins",
-            DisplayName = "Advanced Bait - 50 Coins"
-        })
-    end
-    
-    return #MERCHANT_ITEMS
-end
-
--- Simple function to buy item - FIXED VERSION
-local function BuyItem(itemName)
-    if not itemName then
-        return false, "No item name provided"
-    end
-    
-    -- Find the item in merchant items
-    local foundItem = nil
-    for _, item in ipairs(MERCHANT_ITEMS) do
-        if item.Name == itemName or item.DisplayName:find(itemName) then
-            foundItem = item
-            break
-        end
-    end
-    
-    if not foundItem then
-        return false, "Item not found: " .. tostring(itemName)
-    end
-    
-    -- Direct purchase using the game's RemoteFunction
-    local success, result = pcall(function()
-        -- Try different possible RemoteFunction names
-        local purchaseRemote = ReplicatedStorage:FindFirstChild("PurchaseMarketItem")
-        if not purchaseRemote then
-            purchaseRemote = ReplicatedStorage:FindFirstChild("RemoteFunctions"):FindFirstChild("PurchaseMarketItem")
-        end
-        
-        if purchaseRemote and purchaseRemote:IsA("RemoteFunction") then
-            return purchaseRemote:InvokeServer(foundItem.Name)
-        else
-            return false, "Purchase remote not found"
-        end
-    end)
-    
-    if success then
-        if result == true then
-            return true, "Successfully purchased: " .. foundItem.Name
-        else
-            return false, "Purchase failed - server returned false"
-        end
-    else
-        return false, "Purchase error: " .. tostring(result)
-    end
-end
-
--- Auto Buy System - SIMPLE VERSION
-local function StartAutoBuy()
-    if AUTO_BUY_ENABLED then return end
-    
-    if not SELECTED_ITEM then
-        Notify({Title = "Auto Buy Error", Content = "Please select an item first", Duration = 3})
-        return
-    end
-    
-    AUTO_BUY_ENABLED = true
-    
-    Notify({
-        Title = "Auto Buy Started", 
-        Content = "Automatically purchasing: " .. SELECTED_ITEM.Name,
-        Duration = 3
-    })
-    
-    AUTO_BUY_LOOP = task.spawn(function()
-        local purchaseAttempts = 0
-        local maxAttempts = 30  -- Increased attempts
-        
-        while AUTO_BUY_ENABLED and purchaseAttempts < maxAttempts do
-            local success, message = BuyItem(SELECTED_ITEM.Name)
-            
-            if success then
-                Notify({
-                    Title = "Purchase Successful", 
-                    Content = message,
-                    Duration = 3
-                })
-                AUTO_BUY_ENABLED = false
-                break
-            else
-                -- Don't stop on errors, just continue trying
-                if string.find(tostring(message), "insufficient", 1, true) then
-                    Notify({
-                        Title = "Auto Buy Stopped", 
-                        Content = "Insufficient funds",
-                        Duration = 4
-                    })
-                    AUTO_BUY_ENABLED = false
-                    break
-                end
-            end
-            
-            purchaseAttempts += 1
-            task.wait(0.3)  -- Faster retry for testing
-        end
-        
-        if purchaseAttempts >= maxAttempts then
-            Notify({
-                Title = "Auto Buy Stopped", 
-                Content = "Reached maximum purchase attempts",
-                Duration = 4
-            })
-            AUTO_BUY_ENABLED = false
-        end
-    end)
-end
-
-local function StopAutoBuy()
-    if not AUTO_BUY_ENABLED then return end
-    
-    AUTO_BUY_ENABLED = false
-    if AUTO_BUY_LOOP then
-        task.cancel(AUTO_BUY_LOOP)
-        AUTO_BUY_LOOP = nil
-    end
-    
-    Notify({
-        Title = "Auto Buy Stopped", 
-        Content = "Purchase automation stopped",
-        Duration = 2
-    })
-end
-
--- =============================================================================
 -- MAIN WINDOW CREATION
 -- =============================================================================
 
@@ -451,12 +427,12 @@ InfoTab:CreateParagraph({
 
 InfoTab:CreateParagraph({
     Title = "System Overview",
-    Content = "Auto Fishing System • Coordinate Tracking • Player Teleportation • Performance Boosts • Real-time Monitoring • Merchant Auto Buyer"
+    Content = "Auto Fishing System • Coordinate Tracking • Player Teleportation • Performance Boosts • Real-time Monitoring • Player Configuration"
 })
 
 InfoTab:CreateParagraph({
     Title = "Core Features",
-    Content = "• Stable Auto Fishing Algorithm\n• Real-time Coordinate Display\n• Map Teleportation System\n• Player Stat Modification\n• Merchant Auto Purchase\n• Professional User Interface"
+    Content = "• Stable Auto Fishing Algorithm\n• Real-time Coordinate Display\n• Map Teleportation System\n• Player Stat Modification\n• Anti Lag System\n• Position Management\n• Professional User Interface"
 })
 
 -- ========== AUTO SYSTEM TAB ==========
@@ -497,189 +473,105 @@ AutoTab:CreateToggle({
     end
 })
 
--- ========== MERCHANT TAB ==========
-local MerchantTab = Window:CreateTab("Merchant Auto Buyer", "store")
+-- ========== PLAYER CONFIGURATION TAB ==========
+local PlayerConfigTab = Window:CreateTab("Player Configuration", "settings")
 
-MerchantTab:CreateParagraph({
-    Title = "Merchant Auto Purchase System",
-    Content = "Simple and direct purchase system. No ownership checks - just buy!"
+PlayerConfigTab:CreateParagraph({
+    Title = "Player Configuration System",
+    Content = "Advanced player settings for performance optimization and position management."
 })
 
--- Status display for merchant
-local merchantStatus = MerchantTab:CreateParagraph({
-    Title = "Merchant Status:",
-    Content = "Ready to scan items"
-})
+-- Anti Lag Section
+PlayerConfigTab:CreateSection("Performance Optimization")
 
--- Item Selection Dropdown
-local itemDropdown = MerchantTab:CreateDropdown({
-    Name = "Select Item to Purchase",
-    Options = {"Click scan button first..."},
-    CurrentOption = "Click scan button first...",
-    Flag = "MerchantItemSelect",
-    Callback = function(selected)
-        if selected == "Click scan button first..." then return end
-        
-        for _, item in ipairs(MERCHANT_ITEMS) do
-            if item.DisplayName == selected then
-                SELECTED_ITEM = item
-                merchantStatus:Set("Selected: " .. item.Name)
-                Notify({
-                    Title = "Item Selected", 
-                    Content = "Ready to purchase: " .. item.Name,
-                    Duration = 2
-                })
-                break
-            end
-        end
-    end
-})
-
--- Refresh Items Button
-MerchantTab:CreateButton({
-    Name = "Scan Merchant Items",
-    Callback = function()
-        local itemCount = ShowShopItems()
-        
-        if itemCount > 0 then
-            -- Update dropdown
-            local newOptions = {}
-            for _, item in ipairs(MERCHANT_ITEMS) do
-                table.insert(newOptions, item.DisplayName)
-            end
-            
-            itemDropdown:Refresh(newOptions, true)
-            
-            -- Auto select first item
-            if #MERCHANT_ITEMS > 0 then
-                SELECTED_ITEM = MERCHANT_ITEMS[1]
-                merchantStatus:Set("Selected: " .. SELECTED_ITEM.Name)
-            end
-            
-            Notify({
-                Title = "Scan Complete", 
-                Content = string.format("Found %d available items", itemCount),
-                Duration = 3
-            })
-        else
-            Notify({
-                Title = "Scan Failed", 
-                Content = "No items found in merchant",
-                Duration = 3
-            })
-        end
-    end
-})
-
--- Single Purchase Button
-MerchantTab:CreateButton({
-    Name = "Single Purchase",
-    Callback = function()
-        if not SELECTED_ITEM then
-            Notify({Title = "Purchase Error", Content = "Please scan and select an item first", Duration = 3})
-            return
-        end
-        
-        merchantStatus:Set("Purchasing: " .. SELECTED_ITEM.Name)
-        
-        local success, message = BuyItem(SELECTED_ITEM.Name)
-        if success then
-            merchantStatus:Set("Purchase Successful!")
-            Notify({
-                Title = "Purchase Successful", 
-                Content = message,
-                Duration = 3
-            })
-        else
-            merchantStatus:Set("Purchase Failed")
-            Notify({
-                Title = "Purchase Failed", 
-                Content = message,
-                Duration = 4
-            })
-        end
-    end
-})
-
--- Auto Buy Toggle
-MerchantTab:CreateToggle({
-    Name = "Enable Auto Buy",
+PlayerConfigTab:CreateToggle({
+    Name = "Anti Lag Mode",
     CurrentValue = false,
-    Flag = "AutoBuyToggle",
+    Flag = "AntiLagToggle",
     Callback = function(state)
         if state then
-            StartAutoBuy()
+            EnableAntiLag()
         else
-            StopAutoBuy()
+            DisableAntiLag()
         end
     end
 })
 
--- Emergency Stop Button
-MerchantTab:CreateButton({
-    Name = "Emergency Stop",
-    Callback = function()
-        StopAutoBuy()
-        merchantStatus:Set("Stopped - Ready")
-        Notify({
-            Title = "Emergency Stop", 
-            Content = "All auto buy operations stopped",
-            Duration = 3
-        })
-    end
+PlayerConfigTab:CreateParagraph({
+    Title = "Anti Lag Information",
+    Content = "Reduces graphics quality for better performance:\n• Disables shadows\n• Reduces water effects\n• Disables particle effects\n• Optimizes lighting"
 })
 
--- Quick Purchase Buttons for common items
-MerchantTab:CreateSection("Quick Purchase")
+-- Position Management Section
+PlayerConfigTab:CreateSection("Position Management")
 
-MerchantTab:CreateButton({
-    Name = "Quick Buy - First Item",
-    Callback = function()
-        if #MERCHANT_ITEMS > 0 then
-            SELECTED_ITEM = MERCHANT_ITEMS[1]
-            local success, message = BuyItem(SELECTED_ITEM.Name)
-            if success then
-                Notify({Title = "Quick Purchase", Content = message, Duration = 3})
-            else
-                Notify({Title = "Quick Purchase Failed", Content = message, Duration = 4})
-            end
+PlayerConfigTab:CreateToggle({
+    Name = "Auto Save Position",
+    CurrentValue = false,
+    Flag = "SavePositionToggle",
+    Callback = function(state)
+        savePositionEnabled = state
+        if state then
+            StartAutoSavePosition()
+            Notify({Title = "Auto Save", Content = "Auto position saving enabled", Duration = 3})
         else
-            Notify({Title = "Quick Purchase", Content = "No items available. Scan first.", Duration = 3})
+            Notify({Title = "Auto Save", Content = "Auto position saving disabled", Duration = 3})
         end
     end
 })
 
-MerchantTab:CreateButton({
-    Name = "Quick Buy - Second Item", 
+PlayerConfigTab:CreateButton({
+    Name = "Save Current Position",
     Callback = function()
-        if #MERCHANT_ITEMS > 1 then
-            SELECTED_ITEM = MERCHANT_ITEMS[2]
-            local success, message = BuyItem(SELECTED_ITEM.Name)
-            if success then
-                Notify({Title = "Quick Purchase", Content = message, Duration = 3})
-            else
-                Notify({Title = "Quick Purchase Failed", Content = message, Duration = 4})
-            end
+        SaveCurrentPosition()
+    end
+})
+
+PlayerConfigTab:CreateButton({
+    Name = "Load Saved Position",
+    Callback = function()
+        LoadSavedPosition()
+    end
+})
+
+PlayerConfigTab:CreateToggle({
+    Name = "Lock Player Position",
+    CurrentValue = false,
+    Flag = "LockPositionToggle",
+    Callback = function(state)
+        if state then
+            StartLockPosition()
         else
-            Notify({Title = "Quick Purchase", Content = "Second item not available", Duration = 3})
+            StopLockPosition()
         end
     end
 })
 
--- Auto scan on startup
-task.spawn(function()
-    task.wait(2)
-    local itemCount = ShowShopItems()
-    if itemCount > 0 then
-        local newOptions = {}
-        for _, item in ipairs(MERCHANT_ITEMS) do
-            table.insert(newOptions, item.DisplayName)
-        end
-        itemDropdown:Refresh(newOptions, true)
-        SELECTED_ITEM = MERCHANT_ITEMS[1]
-        merchantStatus:Set("Auto-selected: " .. SELECTED_ITEM.Name)
+PlayerConfigTab:CreateParagraph({
+    Title = "Position Management Info",
+    Content = "• Auto Save: Saves position every 5 seconds\n• Manual Save: Save current position manually\n• Load Position: Teleport to saved position\n• Lock Position: Prevents moving from saved position"
+})
+
+-- Quick Actions Section
+PlayerConfigTab:CreateSection("Quick Actions")
+
+PlayerConfigTab:CreateButton({
+    Name = "Optimize All Graphics",
+    Callback = function()
+        EnableAntiLag()
+        Notify({Title = "Optimization", Content = "All graphics settings optimized", Duration = 3})
     end
-end)
+})
+
+PlayerConfigTab:CreateButton({
+    Name = "Reset All Settings",
+    Callback = function()
+        DisableAntiLag()
+        StopLockPosition()
+        savePositionEnabled = false
+        Notify({Title = "Reset", Content = "All player settings reset", Duration = 3})
+    end
+})
 
 -- ========== TELEPORTATION TAB ==========
 local TeleportTab = Window:CreateTab("Teleportation", "map-pin")
@@ -788,6 +680,8 @@ PlayerTab:CreateButton({
     end
 })
 
+PlayerTab:CreateSection("Performance Settings")
+
 PlayerTab:CreateSlider({
     Name = "Movement Speed",
     Range = {16, 200},
@@ -841,7 +735,8 @@ SettingsTab:CreateButton({
     Name = "Unload Application",
     Callback = function()
         pcall(function() StopAutoFish() end)
-        pcall(function() StopAutoBuy() end)
+        pcall(function() StopLockPosition() end)
+        pcall(function() DisableAntiLag() end)
         pcall(function() Rayfield:Destroy() end)
         DestroyCoordinateDisplay()
         Notify({
@@ -908,7 +803,7 @@ pcall(function() Rayfield:LoadConfiguration() end)
 -- Initial Notification
 Notify({
     Title = "Anggazyy Hub Initialized", 
-    Content = "Premium automation system ready\n• Auto Fishing\n• Merchant Auto Buyer\n• Teleportation\nPress [K] to toggle interface",
+    Content = "Premium automation system ready\n• Auto Fishing\n• Player Configuration\n• Teleportation\n• Performance Optimization\nPress [K] to toggle interface",
     Duration = 6
 })
 
