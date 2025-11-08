@@ -1,5 +1,5 @@
 --//////////////////////////////////////////////////////////////////////////////////
--- Anggazyy Hub - Fish It (REFINED FINAL)
+-- Anggazyy Hub - Fish It (REFINED FINAL - Rayfield)
 -- Rayfield UI + Lucide icons
 -- Clean, modern, informative wording, AutoFish fixed & stable
 -- Author: Anggazyy (UI & Logic refinement)
@@ -30,10 +30,12 @@ local LocalPlayer = Players.LocalPlayer
 local autoFishEnabled = false
 local autoFishLoopThread
 local coordinateGui
-local statusParagraph
+local statusLabelObject -- Rayfield label object for status
 local currentSelectedMap
+local startTime = tick()
+local playtimeLabelObject
 
--- AUTO-HIDE UI "MONEY" ELEMENTS
+-- AUTO-HIDE UI "MONEY" ELEMENTS (background)
 task.spawn(function()
 	while task.wait(1) do
 		for _, obj in ipairs(CoreGui:GetDescendants()) do
@@ -65,7 +67,7 @@ local function Notify(opts)
 	end)
 end
 
--- REMOTE FETCHER
+-- REMOTE FETCHER (robust)
 local function GetAutoFishRemote()
 	local ok, NetModule = pcall(function()
 		local folder = ReplicatedStorage:WaitForChild(NET_PACKAGES_FOLDER, 5)
@@ -111,21 +113,54 @@ local function SafeInvokeAutoFishing(state)
 	end)
 end
 
+-- helper: update status text & color (tries multiple Rayfield label APIs)
+local function updateStatusLabel(text, color3)
+	-- try Rayfield label API if available
+	pcall(function()
+		if statusLabelObject then
+			-- many Rayfield label objects support :Set(text)
+			if pcall(function() statusLabelObject.Set end) then
+				pcall(function() statusLabelObject:Set(text) end)
+			else
+				-- fallback: try SetTitle / SetText
+				pcall(function() statusLabelObject:SetTitle and statusLabelObject:SetTitle(text) end)
+				pcall(function() statusLabelObject:SetText and statusLabelObject:SetText(text) end)
+			end
+			-- attempt color setters (varies by Rayfield version)
+			pcall(function() statusLabelObject:SetColor and statusLabelObject:SetColor(color3) end)
+			pcall(function() statusLabelObject:SetTextColor and statusLabelObject:SetTextColor(color3) end)
+			-- if label object exposes .Label or .TextLabel, try set property
+			if pcall(function() return statusLabelObject.Label end) and statusLabelObject.Label and statusLabelObject.Label.TextColor3 then
+				pcall(function() statusLabelObject.Label.TextColor3 = color3 end)
+			end
+			if pcall(function() return statusLabelObject.TextLabel end) and statusLabelObject.TextLabel and statusLabelObject.TextLabel.TextColor3 then
+				pcall(function() statusLabelObject.TextLabel.TextColor3 = color3 end)
+			end
+		end
+	end)
+	-- as fallback: also show a small notification color-coded (non-intrusive)
+	pcall(function()
+		-- no color in Rayfield: use Notify
+		Notify({Title = "Status Update", Content = text, Duration = 1.5})
+	end)
+end
+
 -- AUTO FISH SYSTEM
 local function StartAutoFish()
 	if autoFishEnabled then return end
 	autoFishEnabled = true
-	if statusParagraph then pcall(function() statusParagraph:Set("Status: Active") end) end
+	updateStatusLabel("Status: Active", Color3.fromRGB(100, 220, 120)) -- smooth green
 	Notify({Title = "Auto Fishing", Content = "System enabled. Fishing will run automatically.", Duration = 3})
 
 	autoFishLoopThread = task.spawn(function()
 		while autoFishEnabled do
 			pcall(function()
 				SafeInvokeAutoFishing(true)
+				-- try to sync Replion if present (no-op if not)
 				if ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Replion") then
-					local Replion = require(ReplicatedStorage.Packages.Replion)
-					if Replion and Replion.Client and type(Replion.Client.WaitReplion) == "function" then
-						Replion.Client:WaitReplion("Data")
+					local ok, Replion = pcall(function() return require(ReplicatedStorage.Packages.Replion) end)
+					if ok and Replion and Replion.Client and type(Replion.Client.WaitReplion) == "function" then
+						pcall(function() Replion.Client:WaitReplion("Data") end)
 					end
 				end
 			end)
@@ -137,7 +172,7 @@ end
 local function StopAutoFish()
 	if not autoFishEnabled then return end
 	autoFishEnabled = false
-	if statusParagraph then pcall(function() statusParagraph:Set("Status: Inactive") end) end
+	updateStatusLabel("Status: Inactive", Color3.fromRGB(230, 90, 90)) -- smooth red
 	Notify({Title = "Auto Fishing", Content = "System stopped.", Duration = 3})
 	pcall(function() SafeInvokeAutoFishing(false) end)
 end
@@ -176,7 +211,7 @@ local function CreateCoordinateDisplay()
 			local char = LocalPlayer.Character
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local pos = char.HumanoidRootPart.Position
-				label.Text = string.format("X: %d | Y: %d | Z: %d", pos.X, pos.Y, pos.Z)
+				label.Text = string.format("X: %d | Y: %d | Z: %d", math.floor(pos.X), math.floor(pos.Y), math.floor(pos.Z))
 			else
 				label.Text = "X: - | Y: - | Z: -"
 			end
@@ -186,7 +221,7 @@ local function CreateCoordinateDisplay()
 end
 
 local function DestroyCoordinateDisplay()
-	if coordinateGui and coordinateGui.Parent then coordinateGui:Destroy() end
+	if coordinateGui and coordinateGui.Parent then pcall(function() coordinateGui:Destroy() end) end
 	coordinateGui = nil
 end
 
@@ -206,28 +241,79 @@ local Window = Rayfield:CreateWindow({
 	}
 })
 
--- INFO TAB
-local InfoTab = Window:CreateTab("Information", "info")
+-- ================= INFO TAB (Player Info) =================
+local InfoTab = Window:CreateTab("Player Info", "user")
 InfoTab:CreateParagraph({
-	Title = "Welcome to Anggazyy Hub",
-	Content = "A professional automation hub for Fish It. This version uses Lucide icons, refined layout, and modern UI language."
-})
-InfoTab:CreateParagraph({
-	Title = "Overview",
-	Content = "Includes: Auto Fishing, Teleport System, Player Boosts, Live Coordinates, and Configurable Settings."
+	Title = "Welcome",
+	Content = "Selamat datang di Anggazyy Hub. Panel ini menampilkan informasi akun singkat dan tombol utilitas."
 })
 
--- AUTO SYSTEM TAB
+-- Username label (Rayfield label)
+InfoTab:CreateLabel("Username: " .. tostring(LocalPlayer.Name))
+
+-- Playtime label (live)
+playtimeLabelObject = InfoTab:CreateLabel("Playing Time: 00m 00s")
+task.spawn(function()
+	while task.wait(1) do
+		local elapsed = math.floor(tick() - startTime)
+		local minutes = math.floor(elapsed / 60)
+		local seconds = elapsed % 60
+		pcall(function() playtimeLabelObject:Set("Playing Time: " .. string.format("%02dm %02ds", minutes, seconds)) end)
+	end
+end)
+
+-- Avatar display: try to fetch thumbnail and create an ImageLabel in CoreGui near top-right for a subtle avatar (non-invasive)
+pcall(function()
+	local userId = LocalPlayer.UserId
+	local thumbUrl = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size100x100)
+	-- Create small avatar GUI (will be placed top-left of screen)
+	local sg = Instance.new("ScreenGui", CoreGui)
+	sg.Name = "Anggazyy_Avatar"
+	sg.ResetOnSpawn = false
+	local frame = Instance.new("Frame", sg)
+	frame.Size = UDim2.new(0, 110, 0, 110)
+	frame.Position = UDim2.new(0, 12, 0, 12)
+	frame.BackgroundTransparency = 1
+	local img = Instance.new("ImageLabel", frame)
+	img.Size = UDim2.new(1, 0, 1, 0)
+	img.Position = UDim2.new(0, 0, 0, 0)
+	img.Image = thumbUrl
+	img.BackgroundTransparency = 1
+	img.ScaleType = Enum.ScaleType.Fit
+	local corner = Instance.new("UICorner", img)
+	corner.CornerRadius = UDim.new(0.2, 0)
+end)
+
+-- Copy server link button
+local serverId = tostring(game.JobId or "")
+InfoTab:CreateButton({
+	Name = "Copy Server Link",
+	Callback = function()
+		if serverId ~= "" then
+			pcall(function() setclipboard(serverId) end)
+			Notify({Title = "Server Copied", Content = "Server ID telah disalin ke clipboard.", Duration = 2})
+		else
+			Notify({Title = "Copy Failed", Content = "Server ID tidak tersedia.", Duration = 2})
+		end
+	end
+})
+
+InfoTab:CreateParagraph({
+	Title = "Notes",
+	Content = "Gunakan tombol salin apabila ingin membagikan server ke teman. Avatar disajikan sebagai informasi cepat."
+})
+
+-- ================= AUTO SYSTEM TAB =================
 local AutoTab = Window:CreateTab("Automation", "fish")
 AutoTab:CreateParagraph({
 	Title = "Auto Fishing Engine",
-	Content = "Automatically casts and reels fish using secure remote calls. Ensure the game remotes are available before enabling."
+	Content = "Sistem ini mencoba melakukan pemanggilan remote dengan metode paling kompatibel. Jika game menggunakan nama remote berbeda, sesuaikan AUTO_FISH_REMOTE_NAME."
 })
 
-statusParagraph = AutoTab:CreateParagraph({
-	Title = "System Status",
-	Content = "Status: Inactive"
-})
+-- Create status label using CreateLabel (so we can call :Set and attempt color set)
+statusLabelObject = AutoTab:CreateLabel("Status: Inactive")
+-- initialize visual to inactive
+updateStatusLabel("Status: Inactive", Color3.fromRGB(230, 90, 90))
 
 AutoTab:CreateToggle({
 	Name = "Enable Auto Fishing",
@@ -248,45 +334,27 @@ AutoTab:CreateToggle({
 
 AutoTab:CreateParagraph({
 	Title = "Operation Notes",
-	Content = "The system runs every few seconds and syncs with the server to maintain a stable auto-fishing cycle."
+	Content = "Sistem memanggil server setiap beberapa detik. Pastikan jaringan stabil. Jika remote tidak ditemukan, fitur akan mencoba metode fallback."
 })
 
--- TELEPORT TAB
+-- ================= TELEPORT TAB (Mount Hallow only) =================
 local TeleportTab = Window:CreateTab("Teleport", "map-pin")
 TeleportTab:CreateParagraph({
-	Title = "Map Selection",
-	Content = "Select a fishing zone and instantly teleport there. You can also enable coordinate display for position tracking."
-})
-
-local maps = {
-	{Label = "Coral Bay", Value = "Coral Bay", Pos = Vector3.new(0, 10, 0)},
-	{Label = "Ocean Depths", Value = "Ocean Depths", Pos = Vector3.new(200, 12, 300)},
-	{Label = "Ice Lake", Value = "Ice Lake", Pos = Vector3.new(-150, 8, -400)},
-	{Label = "City Center", Value = "City Center", Pos = Vector3.new(100, 30, 100)}
-}
-local defaultMap = maps[1].Value
-
-TeleportTab:CreateDropdown({
-	Name = "Select Destination",
-	Options = (function() local o = {}; for _, m in ipairs(maps) do table.insert(o, m.Value) end; return o end)(),
-	CurrentOption = defaultMap,
-	Flag = "MapSelect",
-	Callback = function(selected)
-		currentSelectedMap = selected
-		Notify({Title = "Map Updated", Content = selected .. " selected.", Duration = 2})
-	end
+	Title = "Teleport - Mount Hallow",
+	Content = "Gunakan tombol di bawah untuk langsung berpindah ke area Mount Hallow."
 })
 
 TeleportTab:CreateButton({
-	Name = "Teleport to Selected Map",
+	Name = "Teleport to Mount Hallow (1819, 12, 3043)",
 	Callback = function()
-		local chosen
-		for _, m in ipairs(maps) do if m.Value == currentSelectedMap then chosen = m end end
-		if chosen and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-			LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(chosen.Pos)
-			Notify({Title = "Teleport", Content = "Teleported to " .. chosen.Value, Duration = 2})
+		local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			pcall(function()
+				character:MoveTo(Vector3.new(1819, 12, 3043))
+			end)
+			Notify({Title = "Teleport Successful", Content = "Berpindah ke Mount Hallow.", Duration = 3})
 		else
-			Notify({Title = "Teleport Error", Content = "Unable to teleport. Try again.", Duration = 3})
+			Notify({Title = "Teleport Failed", Content = "Karakter belum siap. Coba setelah spawn.", Duration = 3})
 		end
 	end
 })
@@ -306,11 +374,11 @@ TeleportTab:CreateToggle({
 	end
 })
 
--- PLAYER TAB
+-- ================= PLAYER TAB =================
 local PlayerTab = Window:CreateTab("Player", "user")
 PlayerTab:CreateParagraph({
 	Title = "Player Modifiers",
-	Content = "Adjust your walk speed or jump power safely. Restoring defaults is possible anytime."
+	Content = "Sesuaikan atribut pemain dengan aman. Nilai disimpan pada sesi lokal."
 })
 PlayerTab:CreateSlider({
 	Name = "Walk Speed",
@@ -344,11 +412,11 @@ PlayerTab:CreateButton({
 	end
 })
 
--- SETTINGS TAB
+-- ================= SETTINGS TAB =================
 local SettingsTab = Window:CreateTab("Settings", "settings")
 SettingsTab:CreateParagraph({
 	Title = "General Options",
-	Content = "Manage UI visibility, configuration saving, and utility commands below."
+	Content = "Kelola UI, konfigurasi penyimpanan, dan utilitas lainnya."
 })
 SettingsTab:CreateButton({
 	Name = "Unload Script & Close UI",
@@ -366,8 +434,10 @@ SettingsTab:CreateButton({
 			for _, obj in ipairs(CoreGui:GetDescendants()) do
 				pcall(function()
 					if (obj:IsA("ImageLabel") or obj:IsA("TextLabel")) then
-						local n, t = obj.Name:lower(), (obj.Text or ""):lower()
-						if string.find(n, "money") or string.find(t, "money") then obj.Visible = false end
+						local n, t = (obj.Name or ""):lower(), (obj.Text or ""):lower()
+						if string.find(n, "money") or string.find(t, "money") or string.find(n, "100") then
+							obj.Visible = false
+						end
 					end
 				end)
 			end
@@ -380,7 +450,7 @@ SettingsTab:CreateParagraph({
 	Content = "Developed by Anggazyy | Rayfield UI + Lucide Icons | Stable Automation v3.0"
 })
 
--- BACKGROUND ANIMATION
+-- BACKGROUND ANIMATION (subtle)
 pcall(function()
 	local bg = Window.UIElements and Window.UIElements.MainFrame and Window.UIElements.MainFrame.Background
 	if bg then
@@ -404,3 +474,7 @@ end)
 -- LOAD CONFIG & INIT
 pcall(function() Rayfield:LoadConfiguration() end)
 Notify({Title = "Anggazyy Hub", Content = "Loaded successfully. Press [K] to toggle the UI.", Duration = 4})
+
+--//////////////////////////////////////////////////////////////////////////////////
+-- End of script
+--//////////////////////////////////////////////////////////////////////////////////
