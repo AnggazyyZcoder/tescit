@@ -1,45 +1,53 @@
--- // 🔮 Anggazyy Hub - Fish It (Rayfield Version)
--- // UI by Rayfield, Remade by Anggazyy
+--// 🌙 Anggazyy Hub - Fish It | Rayfield Modern Edition
+--// Developer: Anggazyy
 
--- // Load Rayfield
+--// Load Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- // Variables
+--// Variables
 local player = game.Players.LocalPlayer
 local coordinateDisplay = nil
 local autoFishEnabled = false
 local statusLabel = nil
 
 ------------------------------------------------------------
--- ⚙️ WINDOW SETUP
+-- 🪄 WINDOW CONFIGURATION (Modern)
 ------------------------------------------------------------
 local Window = Rayfield:CreateWindow({
-   Name = "Anggazyy Hub - Fish It",
-   Icon = 0,
-   LoadingTitle = "Anggazyy Hub",
-   LoadingSubtitle = "Fish It Automation",
-   ShowText = "AnggazyyHub",
-   Theme = "Dark", -- Bisa ganti ke "Default", "Light", "Ocean", dll
-   ToggleUIKeybind = "K",
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = "AnggazyyHubConfig",
-      FileName = "FishIt"
-   }
+    Name = "Anggazyy Hub - Fish It",
+    Icon = 0, -- Tidak pakai logo
+    LoadingTitle = "Anggazyy Hub",
+    LoadingSubtitle = "Fish It Automation System",
+    ShowText = "AnggazyyHub",
+    Theme = "Ocean", -- Tema modern (bisa ubah: Dark, Default, Light, Ocean, Midnight, Mocha)
+    ToggleUIKeybind = "K",
+
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "AnggazyyHubConfig",
+        FileName = "FishIt_Modern"
+    }
 })
 
 ------------------------------------------------------------
--- 🎣 AUTO FISHING
+-- ✨ UI NOTIFICATION STYLE
+------------------------------------------------------------
+local function Notify(title, text)
+	Rayfield:Notify({
+		Title = title,
+		Content = text,
+		Duration = 2
+	})
+end
+
+------------------------------------------------------------
+-- 🎣 AUTO FISH SYSTEM
 ------------------------------------------------------------
 local function toggleAutoFish()
 	autoFishEnabled = not autoFishEnabled
 	if autoFishEnabled then
-		Rayfield:Notify({
-			Title = "🎣 Auto Fishing",
-			Content = "Auto Fishing Enabled!",
-			Duration = 2
-		})
-		statusLabel:Set("Status: Enabled")
+		Notify("🎣 Auto Fishing", "Auto Fishing Enabled!")
+		statusLabel:Set("Status: ✅ Enabled")
 
 		task.spawn(function()
 			while autoFishEnabled do
@@ -54,12 +62,8 @@ local function toggleAutoFish()
 			end
 		end)
 	else
-		Rayfield:Notify({
-			Title = "🎣 Auto Fishing",
-			Content = "Auto Fishing Disabled!",
-			Duration = 2
-		})
-		statusLabel:Set("Status: Disabled")
+		Notify("🎣 Auto Fishing", "Auto Fishing Disabled!")
+		statusLabel:Set("Status: ❌ Disabled")
 		pcall(function()
 			local ReplicatedStorage = game:GetService("ReplicatedStorage")
 			local Replion = require(ReplicatedStorage.Packages.Replion)
@@ -71,7 +75,7 @@ local function toggleAutoFish()
 end
 
 ------------------------------------------------------------
--- 📍 KOORDINAT
+-- 📍 COORDINATE SYSTEM
 ------------------------------------------------------------
 local function createCoordinateDisplay()
 	if coordinateDisplay then coordinateDisplay:Destroy() end
@@ -80,25 +84,33 @@ local function createCoordinateDisplay()
 	local Label = Instance.new("TextLabel")
 	local Corner = Instance.new("UICorner")
 	local Stroke = Instance.new("UIStroke")
+	local Gradient = Instance.new("UIGradient")
 
 	CoordGui.Name = "CoordinateDisplay"
 	CoordGui.Parent = game.CoreGui
 	Frame.Parent = CoordGui
-	Frame.Size = UDim2.new(0, 150, 0, 40)
-	Frame.Position = UDim2.new(0.5, -75, 0, 10)
-	Frame.BackgroundColor3 = Color3.fromRGB(35, 25, 45)
+	Frame.Size = UDim2.new(0, 170, 0, 40)
+	Frame.Position = UDim2.new(0.5, -85, 0.05, 0)
+	Frame.BackgroundColor3 = Color3.fromRGB(25, 20, 45)
 	Corner.Parent = Frame
-	Corner.CornerRadius = UDim.new(0.2, 0)
+	Corner.CornerRadius = UDim.new(0.25, 0)
 	Stroke.Parent = Frame
 	Stroke.Color = Color3.fromRGB(138, 43, 226)
-	Stroke.Thickness = 1.5
+	Stroke.Thickness = 1.8
+
+	Gradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 0, 180)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 255, 255))
+	}
+	Gradient.Rotation = 45
+	Gradient.Parent = Frame
 
 	Label.Parent = Frame
 	Label.Size = UDim2.new(1, 0, 1, 0)
 	Label.BackgroundTransparency = 1
 	Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Label.Font = Enum.Font.GothamMedium
-	Label.TextSize = 11
+	Label.Font = Enum.Font.GothamSemibold
+	Label.TextSize = 12
 	Label.Text = "X: 0 | Y: 0 | Z: 0"
 
 	coordinateDisplay = CoordGui
@@ -116,40 +128,49 @@ local function createCoordinateDisplay()
 end
 
 ------------------------------------------------------------
--- 🧭 TAB: INFO
+-- 📘 TAB 1: INFO & GUIDE
 ------------------------------------------------------------
-local InfoTab = Window:CreateTab("📋 Info & Guide")
+local InfoTab = Window:CreateTab("📘 Info & Guide")
 
-InfoTab:CreateParagraph({Title = "🌟 FITUR UTAMA", Content = [[
-🎣 Auto Fishing
-📍 Coordinate Display
-⚡ Player Boost
-🚀 Quick Teleport
-]]})
+InfoTab:CreateParagraph({
+	Title = "🌟 Selamat Datang di Anggazyy Hub",
+	Content = "UI versi modern dengan efek gradasi & layout smooth. Script ini dibuat khusus untuk game **Fish It!** oleh Anggazyy."
+})
 
-InfoTab:CreateParagraph({Title = "📝 CARA PAKAI", Content = [[
-1. Aktifkan Auto Fishing di Tab '🎣 Auto Fish'
-2. Lihat koordinat di Tab '📍 Teleport'
-3. Boost Player di Tab '👤 Player'
-4. Teleport ke lokasi di Tab '📍 Teleport'
-]]})
+InfoTab:CreateParagraph({
+	Title = "📋 Fitur Utama",
+	Content = "🎣 Auto Fishing\n📍 Koordinat Real-time\n⚡ Player Boost\n🚀 Teleport cepat\n🧭 Tampilan Modern"
+})
 
-InfoTab:CreateParagraph({Title = "⚠️ PERINGATAN", Content = "Gunakan dengan bijak! Risiko ditanggung pengguna."})
+InfoTab:CreateParagraph({
+	Title = "⚠️ Peringatan",
+	Content = "Gunakan dengan bijak. Script ini bukan untuk disalahgunakan."
+})
 
 ------------------------------------------------------------
--- 🎣 TAB: AUTO FISH
+-- 🎣 TAB 2: AUTO FISH
 ------------------------------------------------------------
 local FishTab = Window:CreateTab("🎣 Auto Fish")
+
+FishTab:CreateSection("Auto Fishing Control")
 
 FishTab:CreateButton({
 	Name = "🎣 Toggle Auto Fishing",
 	Callback = toggleAutoFish
 })
 
-statusLabel = FishTab:CreateParagraph({Title = "Status:", Content = "Status: Disabled"})
+statusLabel = FishTab:CreateParagraph({
+	Title = "Status:",
+	Content = "Status: ❌ Disabled"
+})
+
+FishTab:CreateParagraph({
+	Title = "ℹ️ Tentang Fitur",
+	Content = "Auto Fishing akan secara otomatis melempar pancing, menunggu, dan menangkap ikan secara berulang tanpa aksi manual."
+})
 
 ------------------------------------------------------------
--- 📍 TAB: TELEPORT
+-- 📍 TAB 3: TELEPORT
 ------------------------------------------------------------
 local TeleportTab = Window:CreateTab("📍 Teleport")
 
@@ -167,43 +188,33 @@ for _, loc in ipairs(teleportLocations) do
 			local char = player.Character
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				char.HumanoidRootPart.CFrame = CFrame.new(loc[2])
-				Rayfield:Notify({
-					Title = "✨ Teleported!",
-					Content = "Teleported to " .. loc[1],
-					Duration = 2
-				})
+				Notify("✨ Teleport Sukses", "Berhasil ke " .. loc[1])
 			end
 		end
 	})
 end
 
 TeleportTab:CreateToggle({
-	Name = "📍 Show Coordinates",
+	Name = "📍 Tampilkan Koordinat",
 	CurrentValue = false,
 	Flag = "CoordDisplay",
 	Callback = function(Value)
 		if Value then
 			createCoordinateDisplay()
-			Rayfield:Notify({
-				Title = "📍 Coordinates",
-				Content = "Coordinate display enabled!",
-				Duration = 2
-			})
+			Notify("📍 Koordinat", "Tampilan koordinat aktif!")
 		else
 			if coordinateDisplay then coordinateDisplay:Destroy() end
-			Rayfield:Notify({
-				Title = "📍 Coordinates",
-				Content = "Coordinate display disabled!",
-				Duration = 2
-			})
+			Notify("📍 Koordinat", "Tampilan koordinat dimatikan.")
 		end
 	end
 })
 
 ------------------------------------------------------------
--- 👤 TAB: PLAYER
+-- 👤 TAB 4: PLAYER SETTINGS
 ------------------------------------------------------------
 local PlayerTab = Window:CreateTab("👤 Player")
+
+PlayerTab:CreateSection("⚡ Player Boost")
 
 PlayerTab:CreateSlider({
 	Name = "🏃 Walk Speed",
@@ -232,38 +243,47 @@ PlayerTab:CreateSlider({
 })
 
 ------------------------------------------------------------
--- ✨ FLOATING BUTTON (MINIMIZE / SHOW UI)
+-- 🪶 FLOATING BUTTON (Minimalist Style)
 ------------------------------------------------------------
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "AnggazyyHubFloat"
+local FloatUI = Instance.new("ScreenGui", game.CoreGui)
+FloatUI.Name = "AnggazyyFloatUI"
+local Button = Instance.new("ImageButton", FloatUI)
+Button.Size = UDim2.new(0, 50, 0, 50)
+Button.Position = UDim2.new(0, 15, 0.5, -25)
+Button.Image = "rbxassetid://7072717775"
+Button.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
+Button.AutoButtonColor = false
+local Corner = Instance.new("UICorner", Button)
+Corner.CornerRadius = UDim.new(1, 0)
+local Stroke = Instance.new("UIStroke", Button)
+Stroke.Color = Color3.fromRGB(140, 90, 255)
+Stroke.Thickness = 2
 
-local OpenButton = Instance.new("ImageButton", ScreenGui)
-OpenButton.Size = UDim2.new(0, 50, 0, 50)
-OpenButton.Position = UDim2.new(0, 15, 0.5, -25)
-OpenButton.BackgroundColor3 = Color3.fromRGB(45, 25, 65)
-OpenButton.Image = "rbxassetid://7072717775"
-OpenButton.AutoButtonColor = false
-local Corner = Instance.new("UICorner", OpenButton)
-Corner.CornerRadius = UDim.new(0.3, 0)
-
-OpenButton.MouseButton1Click:Connect(function()
+Button.MouseButton1Click:Connect(function()
 	Rayfield:ToggleUI()
 end)
 
 ------------------------------------------------------------
--- 🚀 LOADING SCREEN
+-- 🚀 LOADING SCREEN (Smooth Fade)
 ------------------------------------------------------------
 local LoadingGui = Instance.new("ScreenGui", game.CoreGui)
-local BG = Instance.new("Frame", LoadingGui)
-BG.Size = UDim2.new(1, 0, 1, 0)
-BG.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
-local Label = Instance.new("TextLabel", BG)
-Label.Size = UDim2.new(1, 0, 1, 0)
-Label.Text = "ANGGAZYY HUB - FISH IT"
-Label.Font = Enum.Font.GothamBold
-Label.TextColor3 = Color3.new(1, 1, 1)
-Label.TextScaled = true
+local Frame = Instance.new("Frame", LoadingGui)
+Frame.Size = UDim2.new(1, 0, 1, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(15, 10, 25)
 
-task.wait(2)
+local Title = Instance.new("TextLabel", Frame)
+Title.Text = "ANGGAZYY HUB"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 28
+Title.AnchorPoint = Vector2.new(0.5, 0.5)
+Title.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+for i = 1, 25 do
+	Frame.BackgroundTransparency = i / 25
+	Title.TextTransparency = i / 25
+	task.wait(0.05)
+end
+
 LoadingGui:Destroy()
 Rayfield:LoadConfiguration()
