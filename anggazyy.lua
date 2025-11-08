@@ -1,14 +1,14 @@
 --//////////////////////////////////////////////////////////////////////////////////
--- Anggazyy Hub - Fish It (FIXED PERFECT CAST WORKING)
--- Rayfield UI + Lucide icons + Working Perfect Cast System
--- Author: Anggazyy (refactor)
+-- Anggazyy Hub - Fish It (COMPLETE WITH ADVANCED FISHING SYSTEM)
+-- Rayfield UI + Lucide icons + Auto Charge + Auto Click Minigame
+-- Clean, modern, professional design
+-- Author: Anggazyy (refactor with advanced fishing)
 --//////////////////////////////////////////////////////////////////////////////////
 
 -- CONFIG: ubah sesuai kebutuhan
 local AUTO_FISH_REMOTE_NAME = "UpdateAutoFishingState"
 local NET_PACKAGES_FOLDER = "Packages"
 local RAYFIELD_URL = 'https://sirius.menu/rayfield'
-local PERFECT_CAST_ENABLED = true
 
 -- Services & Variables
 local Players = game:GetService("Players")
@@ -18,15 +18,20 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local UserGameSettings = UserSettings():GetService("UserGameSettings")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- Main System Variables
+-- Auto Fishing Variables
 local autoFishEnabled = false
 local autoFishLoopThread = nil
 local coordinateGui = nil
 local statusParagraph = nil
 local currentSelectedMap = nil
+
+-- Advanced Fishing System Variables
+local advancedFishingEnabled = false
+local autoChargeDelay = 0.5
+local autoClickEnabled = true
+local fishingSystemInitialized = false
 
 -- Player Configuration Variables
 local antiLagEnabled = false
@@ -43,19 +48,352 @@ local autoSellEnabled = false
 local autoSellThreshold = 3
 local autoSellLoop = nil
 
--- Perfect Cast System Variables
-local perfectCastEnabled = false
-local perfectCastLoop = nil
-local autoClickEnabled = false
-local autoClickLoop = nil
-local isFishingActive = false
-local fishingModule = nil
-
 -- UI Configuration
-local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
-local COLOR_DISABLED = Color3.fromRGB(244, 67, 54) -- Red
-local COLOR_PRIMARY = Color3.fromRGB(103, 58, 183) -- Purple
-local COLOR_SECONDARY = Color3.fromRGB(30, 30, 46)  -- Dark
+local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)
+local COLOR_DISABLED = Color3.fromRGB(244, 67, 54)
+local COLOR_PRIMARY = Color3.fromRGB(103, 58, 183)
+local COLOR_SECONDARY = Color3.fromRGB(30, 30, 46)
+
+-- =================================================================
+-- ADVANCED FISHING SYSTEM IMPLEMENTATION
+-- =================================================================
+
+-- Fishing System Variables (dari dokumen referensi)
+local Signal = nil
+local Trove = nil
+local Net = nil
+local spr = nil
+local Constants = nil
+local Soundbook = nil
+local GuiControl = nil
+local HUDController = nil
+local AnimationController = nil
+local TextNotificationController = nil
+local BlockedHumanoidStates = nil
+
+local var17_upvw = nil
+local var32_upvw = false
+local var34_upvw = false
+local var35_upvw = nil
+local var36_upvw = nil
+local var37_upvw = nil
+local var38_upvw = 0
+local var40_upvw = nil
+local var109_upvw = false
+
+local trove = nil
+local chargeTrove = nil
+local minigameTrove = nil
+local MinigameChangedSignal = nil
+local AutoClickerConnection = nil
+
+local RequestFishingMinigameStarted_Net = nil
+local FishingCompleted_Net = nil
+local ChargeFishingRod_Net = nil
+
+-- Initialize Fishing System Modules
+local function InitializeFishingSystem()
+    if fishingSystemInitialized then return true end
+    
+    local success = pcall(function()
+        -- Load required modules
+        Signal = require(ReplicatedStorage.Packages.Signal)
+        Trove = require(ReplicatedStorage.Packages.Trove)
+        Net = require(ReplicatedStorage.Packages.Net)
+        spr = require(ReplicatedStorage.Packages.spr)
+        Constants = require(ReplicatedStorage.Shared.Constants)
+        Soundbook = require(ReplicatedStorage.Shared.Soundbook)
+        GuiControl = require(ReplicatedStorage.Modules.GuiControl)
+        HUDController = require(ReplicatedStorage.Controllers.HUDController)
+        AnimationController = require(ReplicatedStorage.Controllers.AnimationController)
+        TextNotificationController = require(ReplicatedStorage.Controllers.TextNotificationController)
+        BlockedHumanoidStates = require(ReplicatedStorage.Shared.BlockedHumanoidStates)
+        
+        -- Initialize Troves
+        trove = Trove.new()
+        chargeTrove = Trove.new()
+        minigameTrove = Trove.new()
+        MinigameChangedSignal = Signal.new()
+        
+        -- Get Remote Functions/Events
+        RequestFishingMinigameStarted_Net = Net:RemoteFunction("RequestFishingMinigameStarted")
+        FishingCompleted_Net = Net:RemoteEvent("FishingCompleted")
+        ChargeFishingRod_Net = Net:RemoteFunction("ChargeFishingRod")
+        
+        fishingSystemInitialized = true
+    end)
+    
+    return success
+end
+
+-- Minigame Click Function
+local function FishingMinigameClick()
+    if not var36_upvw or not var37_upvw then return end
+    
+    local currentTime = workspace:GetServerTimeNow()
+    
+    if currentTime - var37_upvw.LastInput < 0.1 then return end
+    
+    local clamped = math.clamp(var37_upvw.Progress + var37_upvw.FishingClickPower, 0, 1)
+    
+    var37_upvw.LastInput = currentTime
+    var37_upvw.Progress = clamped
+    
+    local var48 = var37_upvw
+    var48.Inputs += 1
+    
+    MinigameChangedSignal:Fire(var37_upvw)
+    
+    if clamped >= 1 then
+        minigameTrove:Clean()
+        FishingCompleted_Net:FireServer()
+        print("[Advanced Auto Click] Minigame Completed!")
+    end
+    
+    return true
+end
+
+-- Start Auto Clicker
+local function StartAutoMinigameClicker()
+    if AutoClickerConnection then 
+        AutoClickerConnection:Disconnect()
+        AutoClickerConnection = nil
+    end
+
+    print("[Advanced Auto Clicker] Activated!")
+    AutoClickerConnection = RunService.Heartbeat:Connect(FishingMinigameClick)
+    minigameTrove:Add(AutoClickerConnection)
+end
+
+-- Stop Auto Clicker
+local function StopAutoMinigameClicker()
+    if AutoClickerConnection then
+        AutoClickerConnection:Disconnect()
+        AutoClickerConnection = nil
+        minigameTrove:Clean()
+        print("[Advanced Auto Clicker] Stopped.")
+    end
+end
+
+-- Fishing Rod Started
+local function FishingRodStarted(data)
+    pcall(function()
+        AnimationController:StopAnimation("ReelingIdle")
+        AnimationController:StopAnimation("ReelStart")
+        AnimationController:PlayAnimation("ReelIntermission")
+    end)
+    
+    var36_upvw = data.UUID
+    var37_upvw = data
+
+    pcall(function()
+        local reelSound = Soundbook.Sounds.Reel:Play()
+        var40_upvw = reelSound
+        reelSound.Volume = 0
+        spr.target(reelSound, 5, 10, { Volume = Soundbook.Sounds.Reel.Volume })
+        
+        minigameTrove:Add(function()
+            spr.stop(reelSound)
+            spr.target(reelSound, 5, 10, { Volume = 0 })
+            task.wait(0.25)
+            reelSound:Stop()
+            reelSound:Destroy()
+        end)
+    end)
+    
+    local PlayerGui = LocalPlayer.PlayerGui
+    local Fishing_upvr = PlayerGui:WaitForChild("Fishing", 2)
+    if Fishing_upvr then
+        pcall(function()
+            spr.stop(Fishing_upvr.Main)
+            spr.target(Fishing_upvr.Main, 50, 250, { Position = UDim2.fromScale(0.5, 0.95) })
+            GuiControl:SetHUDVisibility(false)
+            Fishing_upvr.Enabled = true
+        end)
+    end
+
+    if autoClickEnabled then
+        StartAutoMinigameClicker()
+    end
+end
+
+-- Send Fishing Request
+local function SendFishingRequestToServer(power)
+    local throwPosition = LocalPlayer.Character.HumanoidRootPart.CFrame.Position + Vector3.new(0, -1, 10)
+    local castTime = workspace:GetServerTimeNow()
+    
+    local success, responseData = pcall(function()
+        return RequestFishingMinigameStarted_Net:InvokeServer(
+            throwPosition.Y,
+            power,
+            castTime
+        )
+    end)
+
+    if success and responseData then
+        print("[Advanced Fishing] Minigame started successfully!")
+        FishingRodStarted(responseData)
+        return true
+    else
+        pcall(function()
+            TextNotificationController:DeliverNotification({
+                Type = "Text", 
+                Text = "Failed to cast rod!",
+                TextColor = { R = 255, G = 0, B = 0 }, 
+                CustomDuration = 3.5
+            })
+        end)
+        return false
+    end
+end
+
+-- Fishing Stopped
+local function FishingStopped(isSuccessful)
+    if var34_upvw then return end
+    
+    var34_upvw = true
+    
+    local isCatch = isSuccessful or (var37_upvw and var37_upvw.Progress >= 1)
+    
+    StopAutoMinigameClicker()
+
+    pcall(function()
+        if not isCatch then
+            AnimationController:DestroyActiveAnimationTracks()
+            AnimationController:PlayAnimation("FishingFailure")
+        else
+            AnimationController:DestroyActiveAnimationTracks({"EquipIdle"})
+        end
+        
+        HUDController.ResetCamera()
+    end)
+    
+    local PlayerGui = LocalPlayer.PlayerGui
+    local Fishing_upvr = PlayerGui:FindFirstChild("Fishing")
+    if Fishing_upvr then
+        pcall(function()
+            if isCatch then
+                spr.stop(Fishing_upvr.Main)
+                spr.target(Fishing_upvr.Main, 100, 150, { Position = UDim2.fromScale(0.5, 0.9) })
+                task.wait(0.15)
+            end
+
+            spr.stop(Fishing_upvr.Main)
+            spr.target(Fishing_upvr.Main, 50, 100, { Position = UDim2.fromScale(0.5, 1.5) })
+            task.wait(0.45)
+        end)
+    end
+    
+    pcall(function()
+        chargeTrove:Clean()
+        minigameTrove:Clean()
+        GuiControl:SetHUDVisibility(true)
+    end)
+    
+    var38_upvw = workspace:GetServerTimeNow()
+    var34_upvw = false
+    var37_upvw = nil
+    var36_upvw = nil
+    
+    print("[Advanced Fishing] Cycle completed. Ready for next cast.")
+end
+
+-- Internal Throw Function
+local function internal_DoThrow(chargePower, clientRequestDestroy)
+    pcall(function()
+        AnimationController:DestroyActiveAnimationTracks()
+        AnimationController:PlayAnimation("RodThrow")
+        
+        local sound = Soundbook.Sounds.ThrowCast
+        sound:Play().Volume = 0.5 + math.random() * 0.75
+    end)
+
+    local didServerAccept = SendFishingRequestToServer(chargePower)
+    
+    if not didServerAccept then
+        task.wait(0.1)
+        FishingStopped(false)
+        if clientRequestDestroy then clientRequestDestroy() end
+    end
+end
+
+-- Start Advanced Auto Fishing
+function StartAdvancedAutoFishing(chargeDelaySeconds)
+    chargeDelaySeconds = chargeDelaySeconds or autoChargeDelay
+    
+    if var109_upvw or var34_upvw then
+        warn("[Advanced Fishing] Already running or stopping.")
+        return
+    end
+
+    if not fishingSystemInitialized then
+        local success = InitializeFishingSystem()
+        if not success then
+            warn("[Advanced Fishing] Failed to initialize fishing system!")
+            return
+        end
+    end
+
+    pcall(function()
+        if workspace:GetServerTimeNow() - var38_upvw < (Constants.FishingCooldownTime or 3) then
+            TextNotificationController:DeliverNotification({
+                Type = "Text", 
+                Text = "Fishing on cooldown!",
+                TextColor = { R = 255, G = 0, B = 0 }, 
+                CustomDuration = 2
+            })
+            return
+        end
+    end)
+    
+    var109_upvw = true
+    
+    pcall(function()
+        AnimationController:StopAnimation("EquipIdle")
+        AnimationController:PlayAnimation("StartRodCharge")
+    end)
+    
+    print(string.format("[Advanced Auto Charge] Started. Waiting %.2f seconds...", chargeDelaySeconds))
+    
+    var35_upvw = workspace:GetServerTimeNow()
+    
+    pcall(function()
+        ChargeFishingRod_Net:InvokeServer(nil, nil, nil, var35_upvw)
+    end)
+    
+    chargeTrove:Add(function()
+        var109_upvw = false
+        pcall(function()
+            AnimationController:StopAnimation("StartRodCharge")
+            AnimationController:StopAnimation("LoopedRodCharge")
+        end)
+    end)
+    
+    task.delay(chargeDelaySeconds, function()
+        local throwPower = 0.5
+        pcall(function()
+            throwPower = Constants:GetPower(var35_upvw)
+        end)
+        
+        chargeTrove:Clean()
+        var109_upvw = false
+
+        internal_DoThrow(throwPower, function() FishingStopped(false) end)
+    end)
+end
+
+-- Connect Fishing Minigame Stop Event
+pcall(function()
+    if Net then
+        trove:Add(Net:RemoteEvent("FishingMinigameStop"):Connect(function(isSuccess)
+            FishingStopped(isSuccess)
+        end))
+    end
+end)
+
+-- =================================================================
+-- ORIGINAL FUNCTIONS (KEPT FOR COMPATIBILITY)
+-- =================================================================
 
 -- Auto-clean money icons
 task.spawn(function()
@@ -140,254 +478,13 @@ local function SafeInvokeAutoFishing(state)
     end)
 end
 
--- =============================================================================
--- PERFECT CAST SYSTEM - WORKING FIXED VERSION
--- =============================================================================
-
--- Load Fishing Module dengan cara yang benar
-local function LoadFishingModule()
-    if fishingModule then return fishingModule end
-    
-    local success, result = pcall(function()
-        -- Load required modules untuk fishing system
-        local Replion = require(ReplicatedStorage.Packages.Replion)
-        local Net = require(ReplicatedStorage.Packages.Net)
-        
-        -- Tunggu sampai fishing module tersedia
-        local fishingScript = ReplicatedStorage.Modules:WaitForChild("Fishing", 10)
-        if fishingScript and fishingScript:IsA("ModuleScript") then
-            fishingModule = require(fishingScript)
-            print("✅ Fishing Module loaded successfully!")
-            return fishingModule
-        else
-            warn("❌ Fishing module not found in ReplicatedStorage.Modules")
-            return nil
-        end
-    end)
-    
-    if success and result then
-        return result
-    else
-        warn("❌ Failed to load fishing module: " .. tostring(result))
-        return nil
-    end
-end
-
--- Cek apakah sedang fishing aktif
-local function IsFishingActive()
-    if not fishingModule then
-        fishingModule = LoadFishingModule()
-        if not fishingModule then return false end
-    end
-    
-    local success, result = pcall(function()
-        if fishingModule.GetCurrentGUID then
-            local guid = fishingModule:GetCurrentGUID()
-            return guid ~= nil
-        end
-        return false
-    end)
-    
-    return success and result or false
-end
-
--- Auto Click System untuk Minigame
-local function StartAutoClick()
-    if autoClickEnabled then return end
-    
-    autoClickEnabled = true
-    print("🔄 Auto Click started")
-    
-    autoClickLoop = task.spawn(function()
-        local clickCount = 0
-        while autoClickEnabled and perfectCastEnabled do
-            pcall(function()
-                if fishingModule and fishingModule.RequestFishingMinigameClick then
-                    fishingModule:RequestFishingMinigameClick()
-                    clickCount = clickCount + 1
-                    
-                    -- Cek jika fishing sudah selesai
-                    if not IsFishingActive() then
-                        StopAutoClick()
-                        print("✅ Fishing completed with " .. clickCount .. " clicks")
-                    end
-                end
-            end)
-            task.wait(0.1) -- Click setiap 0.1 detik
-        end
-    end)
-end
-
-local function StopAutoClick()
-    if not autoClickEnabled then return end
-    
-    autoClickEnabled = false
-    print("🛑 Auto Click stopped")
-    
-    if autoClickLoop then
-        task.cancel(autoClickLoop)
-        autoClickLoop = nil
-    end
-end
-
--- Perfect Cast Fishing System - WORKING VERSION
-local function StartPerfectCastFishing()
-    if perfectCastEnabled then return end
-    
-    -- Load fishing module pertama kali
-    fishingModule = LoadFishingModule()
-    if not fishingModule then
-        Notify({Title = "Perfect Cast Error", Content = "Fishing module not found!", Duration = 4})
-        return
-    end
-    
-    perfectCastEnabled = true
-    Notify({Title = "Perfect Cast", Content = "Perfect cast fishing activated!", Duration = 3})
-    print("🎣 Perfect Cast Fishing STARTED")
-    
-    perfectCastLoop = task.spawn(function()
-        local attemptCount = 0
-        
-        while perfectCastEnabled do
-            attemptCount = attemptCount + 1
-            print("🎯 Fishing Attempt: " .. attemptCount)
-            
-            -- Cek cooldown
-            if fishingModule.OnCooldown and fishingModule:OnCooldown() then
-                print("⏳ On cooldown, waiting...")
-                task.wait(3)
-                continue
-            end
-            
-            -- Cek inventory space
-            local Constants = require(ReplicatedStorage.Shared.Constants)
-            local Replion = require(ReplicatedStorage.Packages.Replion)
-            local Data = Replion.Client:WaitReplion("Data")
-            
-            if Data and Constants.MaxInventorySize <= Constants:CountInventorySize(Data) then
-                if fishingModule.NoInventorySpace then
-                    fishingModule:NoInventorySpace()
-                end
-                task.wait(2)
-                continue
-            end
-            
-            -- Cek fishing rod equipped
-            local equippedId = Data:Get("EquippedId")
-            if not equippedId or equippedId == "" then
-                print("❌ No fishing rod equipped!")
-                task.wait(3)
-                continue
-            end
-            
-            -- Cek apakah sedang tidak fishing
-            if not IsFishingActive() then
-                print("🎣 Starting new fishing cycle...")
-                
-                -- Gunakan RequestChargeFishingRod untuk mulai fishing
-                local screenCenter = Vector2.new(
-                    workspace.CurrentCamera.ViewportSize.X / 2,
-                    workspace.CurrentCamera.ViewportSize.Y / 2
-                )
-                
-                if fishingModule.RequestChargeFishingRod then
-                    fishingModule:RequestChargeFishingRod(screenCenter)
-                    print("✅ RequestChargeFishingRod called")
-                    
-                    -- Tunggu untuk minigame mulai
-                    local minigameWaitTime = 0
-                    while minigameWaitTime < 5 do -- Max 5 detik tunggu minigame
-                        task.wait(0.5)
-                        minigameWaitTime = minigameWaitTime + 0.5
-                        
-                        if IsFishingActive() then
-                            print("🎮 Minigame detected, starting auto click...")
-                            StartAutoClick()
-                            break
-                        end
-                    end
-                    
-                    -- Tunggu sampai fishing selesai
-                    local fishingWaitTime = 0
-                    while IsFishingActive() and fishingWaitTime < 30 do -- Max 30 detik
-                        task.wait(1)
-                        fishingWaitTime = fishingWaitTime + 1
-                    end
-                    
-                    StopAutoClick()
-                    print("✅ Fishing cycle completed")
-                    
-                else
-                    print("❌ RequestChargeFishingRod not available")
-                end
-            else
-                print("⚠️ Already fishing, waiting...")
-            end
-            
-            -- Cooldown antara attempts
-            local cooldown = math.random(2, 4)
-            task.wait(cooldown)
-            
-            -- Safety break
-            if attemptCount > 50 then
-                print("🛑 Safety break - too many attempts")
-                break
-            end
-        end
-        
-        print("🛑 Perfect Cast Fishing STOPPED")
-    end)
-end
-
-local function StopPerfectCastFishing()
-    if not perfectCastEnabled then return end
-    
-    perfectCastEnabled = false
-    StopAutoClick()
-    
-    if perfectCastLoop then
-        task.cancel(perfectCastLoop)
-        perfectCastLoop = nil
-    end
-    
-    Notify({Title = "Perfect Cast", Content = "Perfect cast fishing stopped", Duration = 3})
-    print("🛑 Perfect Cast Fishing STOPPED")
-end
-
--- Test Function untuk debugging
-local function TestFishingSystem()
-    fishingModule = LoadFishingModule()
-    if not fishingModule then
-        Notify({Title = "Test Failed", Content = "Fishing module not found!", Duration = 4})
-        return
-    end
-    
-    local methods = {}
-    for methodName, method in pairs(fishingModule) do
-        if type(method) == "function" then
-            table.insert(methods, methodName)
-        end
-    end
-    
-    Notify({
-        Title = "Fishing Module Test", 
-        Content = "Module loaded! Methods: " .. table.concat(methods, ", "),
-        Duration = 5
-    })
-    
-    print("🔍 Fishing Module Methods:")
-    for _, method in ipairs(methods) do
-        print(" - " .. method)
-    end
-end
-
--- Auto Fishing System (Original)
+-- Auto Fishing System (Simple)
 local function StartAutoFish()
     if autoFishEnabled then return end
     autoFishEnabled = true
     if statusParagraph then 
         pcall(function() 
-            statusParagraph:Set("Status: AUTO FISHING ACTIVE")
+            statusParagraph:Set("Status: ACTIVE")
         end) 
     end
     Notify({Title = "Auto Fishing", Content = "System activated successfully", Duration = 2})
@@ -415,18 +512,36 @@ local function StopAutoFish()
     pcall(function()
         SafeInvokeAutoFishing(false)
     end)
+end
+
+-- Advanced Auto Fishing Loop
+local function StartAdvancedAutoFishingLoop()
+    if advancedFishingEnabled then return end
+    advancedFishingEnabled = true
     
-    if autoFishLoopThread then
-        task.cancel(autoFishLoopThread)
-        autoFishLoopThread = nil
-    end
+    Notify({Title = "Advanced Fishing", Content = "System activated with auto charge & auto click", Duration = 3})
+    
+    task.spawn(function()
+        while advancedFishingEnabled do
+            pcall(function()
+                StartAdvancedAutoFishing(autoChargeDelay)
+            end)
+            task.wait(8) -- Wait between fishing cycles
+        end
+    end)
+end
+
+local function StopAdvancedAutoFishingLoop()
+    if not advancedFishingEnabled then return end
+    advancedFishingEnabled = false
+    
+    Notify({Title = "Advanced Fishing", Content = "System deactivated", Duration = 2})
 end
 
 -- =============================================================================
--- ULTRA ANTI LAG SYSTEM - WHITE TEXTURE MODE
+-- ULTRA ANTI LAG SYSTEM
 -- =============================================================================
 
--- Save original graphics settings
 local function SaveOriginalGraphics()
     originalGraphicsSettings = {
         GraphicsQualityLevel = UserGameSettings.GraphicsQualityLevel,
@@ -440,32 +555,27 @@ local function SaveOriginalGraphics()
     }
 end
 
--- Ultra Anti Lag System - White Texture Mode
 local function EnableAntiLag()
     if antiLagEnabled then return end
     
     SaveOriginalGraphics()
     antiLagEnabled = true
     
-    -- Extreme graphics optimization with white textures
     pcall(function()
-        -- Graphics quality settings
         UserGameSettings.GraphicsQualityLevel = 1
         UserGameSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
         
-        -- Lighting optimization - Bright white environment
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 999999
-        Lighting.Brightness = 5  -- Extra bright
+        Lighting.Brightness = 5
         Lighting.ShadowSoftness = 0
         Lighting.EnvironmentDiffuseScale = 1
         Lighting.EnvironmentSpecularScale = 0
-        Lighting.OutdoorAmbient = Color3.new(1, 1, 1)  -- Pure white ambient
-        Lighting.Ambient = Color3.new(1, 1, 1)  -- Pure white
+        Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+        Lighting.Ambient = Color3.new(1, 1, 1)
         Lighting.ColorShift_Bottom = Color3.new(1, 1, 1)
         Lighting.ColorShift_Top = Color3.new(1, 1, 1)
         
-        -- Terrain optimization - White terrain
         if workspace.Terrain then
             workspace.Terrain.Decoration = false
             workspace.Terrain.WaterReflectance = 0
@@ -474,10 +584,8 @@ local function EnableAntiLag()
             workspace.Terrain.WaterWaveSpeed = 0
         end
         
-        -- Make all parts white and disable effects
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
-                -- Set all parts to white
                 if obj:FindFirstChildOfClass("Texture") then
                     obj:FindFirstChildOfClass("Texture"):Destroy()
                 end
@@ -487,24 +595,13 @@ local function EnableAntiLag()
                 obj.Material = Enum.Material.SmoothPlastic
                 obj.BrickColor = BrickColor.new("White")
                 obj.Reflectance = 0
-            elseif obj:IsA("ParticleEmitter") then
-                obj.Enabled = false
-            elseif obj:IsA("Fire") then
-                obj.Enabled = false
-            elseif obj:IsA("Smoke") then
-                obj.Enabled = false
-            elseif obj:IsA("Sparkles") then
-                obj.Enabled = false
-            elseif obj:IsA("Beam") then
-                obj.Enabled = false
-            elseif obj:IsA("Trail") then
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Beam") or obj:IsA("Trail") then
                 obj.Enabled = false
             elseif obj:IsA("Sound") and not obj:FindFirstAncestorWhichIsA("Player") then
                 obj:Stop()
             end
         end
         
-        -- Reduce texture quality to minimum
         settings().Rendering.QualityLevel = 1
     end)
     
@@ -515,7 +612,6 @@ local function DisableAntiLag()
     if not antiLagEnabled then return end
     antiLagEnabled = false
     
-    -- Restore original graphics settings
     pcall(function()
         if originalGraphicsSettings.GraphicsQualityLevel then
             UserGameSettings.GraphicsQualityLevel = originalGraphicsSettings.GraphicsQualityLevel
@@ -542,7 +638,6 @@ local function DisableAntiLag()
             Lighting.EnvironmentSpecularScale = originalGraphicsSettings.EnvironmentSpecularScale
         end
         
-        -- Restore terrain
         if workspace.Terrain then
             workspace.Terrain.Decoration = true
             workspace.Terrain.WaterReflectance = 0.5
@@ -551,20 +646,21 @@ local function DisableAntiLag()
             workspace.Terrain.WaterWaveSpeed = 10
         end
         
-        -- Restore lighting
         Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
         Lighting.Ambient = Color3.new(0.5, 0.5, 0.5)
         Lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
         Lighting.ColorShift_Top = Color3.new(0, 0, 0)
         
-        -- Restore texture quality
         settings().Rendering.QualityLevel = 10
     end)
     
     Notify({Title = "Anti Lag", Content = "Graphics settings restored", Duration = 3})
 end
 
--- Position Management System
+-- =============================================================================
+-- POSITION MANAGEMENT SYSTEM
+-- =============================================================================
+
 local function SaveCurrentPosition()
     local character = LocalPlayer.Character
     if character and character:FindFirstChild("HumanoidRootPart") then
@@ -633,28 +729,23 @@ local function StopLockPosition()
 end
 
 -- =============================================================================
--- BYPASS SYSTEM - FISHING RADAR, DIVING GEAR & AUTO SELL
+-- BYPASS SYSTEM
 -- =============================================================================
 
--- Fishing Radar System
 local function ToggleFishingRadar()
     local success, result = pcall(function()
-        -- Load required modules
         local Replion = require(ReplicatedStorage.Packages.Replion)
         local Net = require(ReplicatedStorage.Packages.Net)
         local UpdateFishingRadar = Net:RemoteFunction("UpdateFishingRadar")
         
-        -- Get player data
         local Data = Replion.Client:WaitReplion("Data")
         if not Data then
-            return false, "Data Replion tidak ditemukan!"
+            return false, "Data Replion not found!"
         end
 
-        -- Get current radar state
         local currentState = Data:Get("RegionsVisible")
         local desiredState = not currentState
 
-        -- Invoke server to update radar
         local invokeSuccess = UpdateFishingRadar:InvokeServer(desiredState)
         
         if invokeSuccess then
@@ -696,36 +787,29 @@ local function StopFishingRadar()
     end
 end
 
--- Diving Gear System
 local function ToggleDivingGear()
     local success, result = pcall(function()
-        -- Load required modules
         local Net = require(ReplicatedStorage.Packages.Net)
         local Replion = require(ReplicatedStorage.Packages.Replion)
         local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
         
-        -- Get diving gear data
         local DivingGear = ItemUtility.GetItemDataFromItemType("Gears", "Diving Gear")
         if not DivingGear then
-            return false, "Diving Gear tidak ditemukan!"
+            return false, "Diving Gear not found!"
         end
 
-        -- Get player data
         local Data = Replion.Client:WaitReplion("Data")
         if not Data then
-            return false, "Data Replion tidak ditemukan!"
+            return false, "Data Replion not found!"
         end
 
-        -- Get remote functions
         local UnequipOxygenTank = Net:RemoteFunction("UnequipOxygenTank")
         local EquipOxygenTank = Net:RemoteFunction("EquipOxygenTank")
 
-        -- Check current equipment state
         local EquippedId = Data:Get("EquippedOxygenTankId")
         local isEquipped = EquippedId == DivingGear.Data.Id
         local success
 
-        -- Toggle equipment
         if isEquipped then
             success = UnequipOxygenTank:InvokeServer()
         else
@@ -772,28 +856,23 @@ local function StopDivingGear()
 end
 
 -- =============================================================================
--- FIXED AUTO SELL SYSTEM - BYPASS CONFIRMATION PROMPT
+-- AUTO SELL SYSTEM
 -- =============================================================================
 
--- Auto Sell System - Fixed version without confirmation
 local function ManualSellAllFish()
     local success, result = pcall(function()
-        -- Load required modules
         local Net = require(ReplicatedStorage.Packages.Net)
         local Replion = require(ReplicatedStorage.Packages.Replion)
         local VendorController = require(ReplicatedStorage.Controllers.VendorController)
         
-        -- Get player data
         local Data = Replion.Client:WaitReplion("Data")
         if not Data then
             return false, "Player data not found"
         end
 
-        -- Check if player has Sell Anywhere gamepass
-        local hasGamepass = true -- Assume player has gamepass to bypass check
+        local hasGamepass = true
         
         if hasGamepass then
-            -- Direct sell without confirmation
             if VendorController and VendorController.SellAllItems then
                 VendorController:SellAllItems()
                 return true, "All fish sold successfully!"
@@ -835,7 +914,6 @@ local function StartAutoSell()
                         end
                         
                         if fishCount >= autoSellThreshold then
-                            -- Bypass gamepass check and sell directly
                             VendorController:SellAllItems()
                             Notify({
                                 Title = "Auto Sell", 
@@ -846,7 +924,7 @@ local function StartAutoSell()
                     end
                 end
             end)
-            task.wait(2) -- Check every 2 seconds
+            task.wait(2)
         end
     end)
     
@@ -882,7 +960,6 @@ local function SetAutoSellThreshold(amount)
     return false
 end
 
--- Auto Radar Toggle with safety
 local function SafeToggleRadar()
     local success, message = ToggleFishingRadar()
     if success then
@@ -892,7 +969,6 @@ local function SafeToggleRadar()
     end
 end
 
--- Auto Diving Gear Toggle with safety
 local function SafeToggleDivingGear()
     local success, message = ToggleDivingGear()
     if success then
@@ -902,7 +978,10 @@ local function SafeToggleDivingGear()
     end
 end
 
--- Coordinate Display System
+-- =============================================================================
+-- COORDINATE DISPLAY SYSTEM
+-- =============================================================================
+
 local function CreateCoordinateDisplay()
     if coordinateGui and coordinateGui.Parent then coordinateGui:Destroy() end
     
@@ -962,7 +1041,6 @@ end
 -- MAIN WINDOW CREATION
 -- =============================================================================
 
--- Main Window Creation
 local Window = Rayfield:CreateWindow({
     Name = "Anggazyy Hub - Fish It",
     Icon = "fish",
@@ -983,15 +1061,82 @@ local InfoTab = Window:CreateTab("Information", "info")
 
 InfoTab:CreateParagraph({
     Title = "Anggazyy Hub - Fish It",
-    Content = "Premium fishing automation with performance optimization\n• Auto Fishing System\n• Perfect Cast System\n• Advanced Bypass Features\n• Performance Optimization"
+    Content = "Premium fishing automation with performance optimization"
 })
 
--- ========== FISHING TAB ==========
-local FishingTab = Window:CreateTab("Fishing", "fish")
+InfoTab:CreateParagraph({
+    Title = "Features:",
+    Content = "• Advanced Auto Fishing (Charge + Click)\n• Simple Auto Fishing\n• Fishing Radar Bypass\n• Diving Gear Auto-Equip\n• Auto Sell Fish\n• Ultra Anti-Lag Mode\n• Position Management\n• Teleportation System"
+})
+
+-- ========== FISHING SYSTEM TAB ==========
+local FishingTab = Window:CreateTab("Fishing System", "fish")
+
+FishingTab:CreateSection("Advanced Fishing System")
 
 FishingTab:CreateParagraph({
-    Title = "Auto Fishing System",
-    Content = "Automated fishing with server communication"
+    Title = "Advanced Auto Fishing",
+    Content = "Automated fishing with auto charge (0.5s) and auto click minigame"
+})
+
+FishingTab:CreateToggle({
+    Name = "Enable Advanced Auto Fishing",
+    CurrentValue = false,
+    Flag = "AdvancedAutoFishToggle",
+    Callback = function(state)
+        if state then
+            StartAdvancedAutoFishingLoop()
+        else
+            StopAdvancedAutoFishingLoop()
+        end
+    end
+})
+
+FishingTab:CreateSlider({
+    Name = "Auto Charge Delay",
+    Range = {0.1, 2},
+    Increment = 0.1,
+    CurrentValue = 0.5,
+    Suffix = "seconds",
+    Flag = "ChargeDelaySlider",
+    Callback = function(value)
+        autoChargeDelay = value
+        Notify({
+            Title = "Charge Delay Updated", 
+            Content = string.format("Charge delay set to %.1f seconds", value),
+            Duration = 2
+        })
+    end
+})
+
+FishingTab:CreateToggle({
+    Name = "Auto Click Minigame",
+    CurrentValue = true,
+    Flag = "AutoClickToggle",
+    Callback = function(state)
+        autoClickEnabled = state
+        Notify({
+            Title = "Auto Click", 
+            Content = state and "Auto click enabled" or "Auto click disabled",
+            Duration = 2
+        })
+    end
+})
+
+FishingTab:CreateButton({
+    Name = "Manual Cast (Advanced)",
+    Callback = function()
+        StartAdvancedAutoFishing(autoChargeDelay)
+        Notify({Title = "Manual Cast", Content = "Casting rod manually...", Duration = 2})
+    end
+})
+
+-- Simple Fishing Section
+FishingTab:CreateSection("Simple Fishing System")
+
+FishingTab:CreateParagraph({
+    Title = "Simple Auto Fishing",
+    Content = "Basic server-side fishing automation"
 })
 
 statusParagraph = FishingTab:CreateParagraph({
@@ -999,11 +1144,8 @@ statusParagraph = FishingTab:CreateParagraph({
     Content = "DISABLED"
 })
 
--- Auto Fishing Section
-FishingTab:CreateSection("🤖 Auto Fishing")
-
 FishingTab:CreateToggle({
-    Name = "Enable Auto Fishing",
+    Name = "Enable Simple Auto Fishing",
     CurrentValue = false,
     Flag = "AutoFishToggle",
     Callback = function(state)
@@ -1015,47 +1157,15 @@ FishingTab:CreateToggle({
     end
 })
 
--- Perfect Cast Section
-FishingTab:CreateSection("🎯 Perfect Cast System")
-
-FishingTab:CreateToggle({
-    Name = "Perfect Cast Fishing",
-    CurrentValue = false,
-    Flag = "PerfectCastToggle",
-    Callback = function(state)
-        if state then
-            StartPerfectCastFishing()
-        else
-            StopPerfectCastFishing()
-        end
-    end
-})
-
-FishingTab:CreateButton({
-    Name = "Test Fishing Module",
-    Callback = TestFishingSystem
-})
-
-FishingTab:CreateParagraph({
-    Title = "Perfect Cast Features:",
-    Content = "• Automatic charge timing\n• Perfect throw accuracy\n• Auto minigame completion\n• Maximum efficiency"
-})
-
-FishingTab:CreateParagraph({
-    Title = "Auto Fishing Features:",
-    Content = "• Automated fishing system\n• Server communication\n• Easy toggle on/off\n• Compatible with all bypass features"
-})
-
 -- ========== BYPASS TAB ==========
 local BypassTab = Window:CreateTab("Bypass", "radar")
 
 BypassTab:CreateParagraph({
     Title = "Game Bypass Features",
-    Content = "Advanced features to enhance gameplay and automation"
+    Content = "Advanced features to enhance gameplay"
 })
 
--- Fishing Radar Section
-BypassTab:CreateSection("📡 Fishing Radar")
+BypassTab:CreateSection("Fishing Radar")
 
 BypassTab:CreateToggle({
     Name = "Fishing Radar",
@@ -1075,8 +1185,7 @@ BypassTab:CreateButton({
     Callback = SafeToggleRadar
 })
 
--- Diving Gear Section
-BypassTab:CreateSection("🤿 Diving Gear")
+BypassTab:CreateSection("Diving Gear")
 
 BypassTab:CreateToggle({
     Name = "Diving Gear",
@@ -1096,8 +1205,7 @@ BypassTab:CreateButton({
     Callback = SafeToggleDivingGear
 })
 
--- Auto Sell Section
-BypassTab:CreateSection("💰 Auto Sell Fish")
+BypassTab:CreateSection("Auto Sell Fish")
 
 BypassTab:CreateToggle({
     Name = "Auto Sell Fish",
@@ -1129,8 +1237,7 @@ BypassTab:CreateButton({
     Callback = ManualSellAllFish
 })
 
--- Quick Actions Section
-BypassTab:CreateSection("⚡ Quick Actions")
+BypassTab:CreateSection("Quick Actions")
 
 BypassTab:CreateButton({
     Name = "Enable All Bypass",
@@ -1155,8 +1262,7 @@ BypassTab:CreateButton({
 -- ========== PLAYER CONFIGURATION TAB ==========
 local PlayerConfigTab = Window:CreateTab("Player Config", "settings")
 
--- Performance Section
-PlayerConfigTab:CreateSection("🚀 Performance")
+PlayerConfigTab:CreateSection("Performance")
 
 PlayerConfigTab:CreateToggle({
     Name = "Ultra Anti Lag",
@@ -1171,8 +1277,7 @@ PlayerConfigTab:CreateToggle({
     end
 })
 
--- Position Section
-PlayerConfigTab:CreateSection("📍 Position")
+PlayerConfigTab:CreateSection("Position")
 
 PlayerConfigTab:CreateButton({
     Name = "Save Position",
@@ -1197,8 +1302,7 @@ PlayerConfigTab:CreateToggle({
     end
 })
 
--- Quick Actions
-PlayerConfigTab:CreateSection("⚡ Quick Actions")
+PlayerConfigTab:CreateSection("Quick Actions")
 
 PlayerConfigTab:CreateButton({
     Name = "Max Performance",
@@ -1213,7 +1317,7 @@ local TeleportTab = Window:CreateTab("Teleportation", "map-pin")
 
 TeleportTab:CreateParagraph({
     Title = "Location Teleport",
-    Content = "Quick teleport to fishing spots and optimal locations"
+    Content = "Quick teleport to fishing spots"
 })
 
 TeleportTab:CreateDropdown({
@@ -1253,7 +1357,7 @@ TeleportTab:CreateToggle({
 -- ========== PLAYER MANAGEMENT TAB ==========
 local PlayerTab = Window:CreateTab("Player Stats", "user")
 
-PlayerTab:CreateSection("🏃 Movement")
+PlayerTab:CreateSection("Movement")
 
 PlayerTab:CreateSlider({
     Name = "Walk Speed",
@@ -1299,7 +1403,7 @@ SettingsTab:CreateButton({
     Name = "Unload Hub",
     Callback = function()
         StopAutoFish()
-        StopPerfectCastFishing()
+        StopAdvancedAutoFishingLoop()
         StopLockPosition()
         DisableAntiLag()
         StopFishingRadar()
@@ -1326,6 +1430,18 @@ SettingsTab:CreateButton({
             end)
         end
         Notify({Title = "Clean", Content = "UI cleaned", Duration = 2})
+    end
+})
+
+SettingsTab:CreateButton({
+    Name = "Initialize Fishing System",
+    Callback = function()
+        local success = InitializeFishingSystem()
+        if success then
+            Notify({Title = "Fishing System", Content = "Advanced fishing system initialized!", Duration = 3})
+        else
+            Notify({Title = "Fishing System", Content = "Failed to initialize fishing system", Duration = 3})
+        end
     end
 })
 
@@ -1356,10 +1472,22 @@ Rayfield:LoadConfiguration()
 -- Initial Notification
 Notify({
     Title = "Anggazyy Hub Ready", 
-    Content = "System initialized successfully\n• Auto Fishing System\n• Perfect Cast System\n• Advanced Bypass Features\n• Performance Optimization",
+    Content = "Advanced Fishing System Loaded Successfully",
     Duration = 4
 })
 
+-- Auto-initialize fishing system on load
+task.delay(2, function()
+    local success = InitializeFishingSystem()
+    if success then
+        print("[Anggazyy Hub] Advanced fishing system initialized successfully!")
+    else
+        warn("[Anggazyy Hub] Failed to initialize advanced fishing system. Simple fishing mode available.")
+    end
+end)
+
 --//////////////////////////////////////////////////////////////////////////////////
 -- System Initialization Complete
+-- Advanced Fishing System: Auto Charge (0.5s) + Auto Click Minigame
+-- All Features Fully Integrated
 --//////////////////////////////////////////////////////////////////////////////////
