@@ -47,6 +47,8 @@ local currentFishingPower = 0.7 -- Default power (70%)
 local perfectCastThread = nil
 local isCurrentlyFishing = false
 local minigameClickThread = nil
+local isCharging = false
+local chargeStartTime = 0
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -174,7 +176,7 @@ local function StopAutoFish()
 end
 
 -- =============================================================================
--- PERFECT CAST FISHING SYSTEM - ADVANCED VERSION
+-- PERFECT CAST FISHING SYSTEM - FIXED VERSION (WAIT FOR POWER)
 -- =============================================================================
 
 -- Fungsi untuk mendapatkan fishing module
@@ -183,7 +185,7 @@ local function GetFishingModule()
         -- Cari fishing module dari berbagai lokasi
         local possiblePaths = {
             "ReplicatedStorage.Controllers.FishingController",
-            "ReplicatedStorage.Modules.Fishing",
+            "ReplicatedStorage.Modules.Fishing", 
             "ReplicatedStorage.Shared.Fishing",
             "ReplicatedStorage.Client.Fishing"
         }
@@ -208,7 +210,9 @@ local function AutoCompleteMinigame()
     
     minigameClickThread = task.spawn(function()
         local clickCount = 0
-        while perfectCastEnabled and isCurrentlyFishing do
+        local maxClicks = 30 -- Maximum clicks untuk prevent infinite loop
+        
+        while perfectCastEnabled and isCurrentlyFishing and clickCount < maxClicks do
             pcall(function()
                 -- Dapatkan fishing module
                 local fishingModule = GetFishingModule()
@@ -226,35 +230,57 @@ local function AutoCompleteMinigame()
                         end
                     end
                 end
-                
-                -- Stop jika sudah banyak klik (prevent infinite loop)
-                if clickCount > 50 then
-                    isCurrentlyFishing = false
-                end
             end)
-            task.wait(0.08) -- Klik setiap 0.08 detik untuk cepat selesai
+            task.wait(0.15) -- Klik setiap 0.15 detik
+        end
+        
+        -- Reset fishing state setelah selesai
+        if clickCount >= maxClicks or not isCurrentlyFishing then
+            isCurrentlyFishing = false
         end
     end)
 end
 
--- Fungsi untuk memulai fishing session dengan power tertentu
-local function StartFishingSession(powerLevel)
+-- Fungsi untuk memulai charging fishing rod
+local function StartChargingFishingRod()
     pcall(function()
         local Net = GetAutoFishRemote()
         if not Net then return false end
         
-        -- Gunakan RequestChargeFishingRod dengan power yang ditentukan
+        isCharging = true
+        chargeStartTime = tick()
+        
+        -- Gunakan RequestChargeFishingRod untuk mulai charging
         local success = pcall(function()
-            -- Dapatkan posisi tengah layar
-            local viewportSize = workspace.CurrentCamera.ViewportSize
-            local centerPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-            
-            -- Panggil RequestChargeFishingRod dengan power level
             if Net.RemoteFunction then
                 local chargeRF = Net:RemoteFunction("ChargeFishingRod")
                 if chargeRF then
                     local serverTime = workspace:GetServerTimeNow()
-                    local result = chargeRF:InvokeServer(nil, nil, powerLevel, serverTime)
+                    local result = chargeRF:InvokeServer(nil, nil, nil, serverTime)
+                    return result ~= nil
+                end
+            end
+            return false
+        end)
+        
+        return success
+    end)
+    return false
+end
+
+-- Fungsi untuk melemparkan fishing rod setelah power tercapai
+local function CastFishingRod()
+    pcall(function()
+        local Net = GetAutoFishRemote()
+        if not Net then return false end
+        
+        -- Gunakan RequestChargeFishingRod dengan power yang ditentukan untuk melempar
+        local success = pcall(function()
+            if Net.RemoteFunction then
+                local chargeRF = Net:RemoteFunction("ChargeFishingRod")
+                if chargeRF then
+                    local serverTime = workspace:GetServerTimeNow()
+                    local result = chargeRF:InvokeServer(nil, nil, currentFishingPower, serverTime)
                     return result ~= nil
                 end
             end
@@ -263,29 +289,14 @@ local function StartFishingSession(powerLevel)
         
         if success then
             isCurrentlyFishing = true
-            -- Mulai auto complete minigame setelah delay
-            task.delay(1.5, AutoCompleteMinigame)
+            isCharging = false
+            
+            -- Mulai auto complete minigame setelah delay (tunggu fish bite)
+            task.delay(3, AutoCompleteMinigame)
             return true
         end
         
-        -- Fallback: Gunakan SendFishingRequestToServer
-        local success2 = pcall(function()
-            local fishingModule = GetFishingModule()
-            if fishingModule and fishingModule.SendFishingRequestToServer then
-                local viewportSize = workspace.CurrentCamera.ViewportSize
-                local centerPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-                
-                local fishingSuccess, fishingResult = fishingModule:SendFishingRequestToServer(centerPosition, powerLevel)
-                if fishingSuccess then
-                    isCurrentlyFishing = true
-                    task.delay(1.5, AutoCompleteMinigame)
-                    return true
-                end
-            end
-            return false
-        end)
-        
-        return success2
+        return false
     end)
     return false
 end
@@ -294,6 +305,7 @@ end
 local function StopFishingSession()
     pcall(function()
         isCurrentlyFishing = false
+        isCharging = false
         
         if minigameClickThread then
             task.cancel(minigameClickThread)
@@ -317,6 +329,33 @@ local function StopFishingSession()
     end)
 end
 
+-- Simulasi charging progress (karena kita tidak bisa akses real charge state)
+local function SimulateCharging()
+    local chargeProgress = 0
+    local chargeTime = currentFishingPower * 3 -- 3 detik untuk charge 100%
+    
+    local startTime = tick()
+    while perfectCastEnabled and isCharging and chargeProgress < currentFishingPower do
+        local elapsed = tick() - startTime
+        chargeProgress = math.min(elapsed / chargeTime, currentFishingPower)
+        
+        -- Update status
+        if statusParagraph then 
+            pcall(function() 
+                statusParagraph:Set("Status: CHARGING - " .. math.floor(chargeProgress * 100) .. "%")
+            end) 
+        end
+        
+        task.wait(0.1)
+    end
+    
+    if chargeProgress >= currentFishingPower and isCharging then
+        return true
+    end
+    
+    return false
+end
+
 -- Main Perfect Cast Fishing Loop
 local function StartPerfectCastFishing()
     if perfectCastEnabled then return end
@@ -330,9 +369,9 @@ local function StartPerfectCastFishing()
     Notify({Title = "Perfect Cast Fishing", Content = "Started with " .. math.floor(currentFishingPower * 100) .. "% power", Duration = 2})
 
     perfectCastThread = task.spawn(function()
-        local castCount = 0
+        local sessionCount = 0
         local failedAttempts = 0
-        local maxFailedAttempts = 5
+        local maxFailedAttempts = 3
         
         while perfectCastEnabled do
             pcall(function()
@@ -365,45 +404,71 @@ local function StartPerfectCastFishing()
                     return
                 end
                 
-                -- Start fishing session dengan power yang ditentukan
-                local success = StartFishingSession(currentFishingPower)
+                -- Reset failed attempts jika berhasil start session
+                failedAttempts = 0
+                sessionCount += 1
                 
-                if success then
-                    castCount += 1
-                    failedAttempts = 0
-                    print("🎣 Perfect Cast #" .. castCount .. " dengan power: " .. math.floor(currentFishingPower * 100) .. "%")
-                    
-                    -- Tunggu sampai fishing selesai (approx 5-10 detik)
-                    local waitTime = 6 + math.random() * 4
-                    local waited = 0
-                    
-                    while perfectCastEnabled and isCurrentlyFishing and waited < waitTime do
-                        task.wait(1)
-                        waited += 1
-                    end
-                    
-                    -- Stop fishing session
-                    StopFishingSession()
-                    
-                    -- Cooldown antara cast
-                    local cooldownTime = 2 + math.random() * 2
-                    task.wait(cooldownTime)
-                else
-                    failedAttempts += 1
-                    print("❌ Gagal casting, attempt: " .. failedAttempts)
-                    
-                    if failedAttempts >= maxFailedAttempts then
-                        Notify({
-                            Title = "Perfect Cast Error", 
-                            Content = "Multiple failed attempts, stopping",
-                            Duration = 3
-                        })
-                        StopPerfectCastFishing()
-                        return
-                    end
-                    
-                    task.wait(3) -- Tunggu sebelum retry
+                -- STEP 1: Start Charging Fishing Rod
+                local chargeStarted = StartChargingFishingRod()
+                if not chargeStarted then
+                    task.wait(2)
+                    return
                 end
+                
+                -- STEP 2: Wait for charging to complete (simulasi)
+                local chargeCompleted = SimulateCharging()
+                if not chargeCompleted then
+                    StopFishingSession()
+                    task.wait(2)
+                    return
+                end
+                
+                -- STEP 3: Cast Fishing Rod
+                local castSuccess = CastFishingRod()
+                if not castSuccess then
+                    StopFishingSession()
+                    task.wait(2)
+                    return
+                end
+                
+                -- STEP 4: Wait for fishing to complete (fish bite + minigame)
+                local fishingStartTime = tick()
+                local maxFishingTime = 15 -- Maximum 15 detik untuk fishing session
+                
+                while perfectCastEnabled and isCurrentlyFishing do
+                    local elapsed = tick() - fishingStartTime
+                    
+                    -- Check jika terlalu lama (timeout)
+                    if elapsed > maxFishingTime then
+                        StopFishingSession()
+                        break
+                    end
+                    
+                    task.wait(1)
+                end
+                
+                -- STEP 5: Cooldown antara sessions
+                if perfectCastEnabled then
+                    local cooldown = 3 + math.random() * 2
+                    
+                    if statusParagraph then 
+                        pcall(function() 
+                            statusParagraph:Set("Status: COOLDOWN - " .. math.floor(cooldown) .. "s")
+                        end) 
+                    end
+                    
+                    local cooldownStart = tick()
+                    while perfectCastEnabled and (tick() - cooldownStart) < cooldown do
+                        task.wait(0.5)
+                    end
+                    
+                    if statusParagraph then 
+                        pcall(function() 
+                            statusParagraph:Set("Status: PERFECT CAST - Power: " .. math.floor(currentFishingPower * 100) .. "%")
+                        end) 
+                    end
+                end
+                
             end)
         end
     end)
@@ -456,25 +521,38 @@ local function SingleCast()
     end
     
     pcall(function()
-        local success = StartFishingSession(currentFishingPower)
-        if success then
+        -- Start charging
+        local chargeStarted = StartChargingFishingRod()
+        if not chargeStarted then
+            Notify({
+                Title = "Cast Failed", 
+                Content = "Failed to start charging",
+                Duration = 2
+            })
+            return
+        end
+        
+        -- Wait for charging
+        task.wait(currentFishingPower * 3) -- Simulasi charging time
+        
+        -- Cast fishing rod
+        local castSuccess = CastFishingRod()
+        if castSuccess then
             Notify({
                 Title = "Single Cast", 
                 Content = "Casted with " .. math.floor(currentFishingPower * 100) .. "% power",
                 Duration = 2
             })
             
-            -- Auto complete minigame untuk single cast juga
-            task.delay(1.5, function()
-                if isCurrentlyFishing then
-                    AutoCompleteMinigame()
-                end
-            end)
-            
             -- Auto stop setelah beberapa detik
-            task.delay(10, function()
+            task.delay(12, function()
                 if isCurrentlyFishing then
                     StopFishingSession()
+                    Notify({
+                        Title = "Single Cast", 
+                        Content = "Fishing session completed",
+                        Duration = 2
+                    })
                 end
             end)
         else
@@ -1114,8 +1192,8 @@ FishingTab:CreateButton({
 })
 
 FishingTab:CreateParagraph({
-    Title = "Perfect Cast Features:",
-    Content = "• Auto casting dengan power tertentu\n• Auto complete minigame\n• Power control (10%-100%)\n• Auto retry jika gagal\n• Combo dengan Auto Fishing"
+    Title = "Perfect Cast Flow:",
+    Content = "1. Start Charging Rod\n2. Wait for Power Target\n3. Auto Cast when Ready\n4. Wait for Fish Bite\n5. Auto Complete Minigame\n6. Repeat Process"
 })
 
 -- Quick Actions Section
