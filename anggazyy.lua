@@ -1,26 +1,26 @@
 --//////////////////////////////////////////////////////////////////////////////////
--- Anggazyy Hub - Fish It (FINAL)
+-- Anggazyy Hub - Fish It (REFINED FINAL)
 -- Rayfield UI + Lucide icons
--- Clean, modern, no emoji, remove "100 money" icons, AutoFish fixed
--- Author: Anggazyy (refactor)
+-- Clean, modern, informative wording, AutoFish fixed & stable
+-- Author: Anggazyy (UI & Logic refinement)
 --//////////////////////////////////////////////////////////////////////////////////
 
--- CONFIG: ubah sesuai kebutuhan
-local AUTO_FISH_REMOTE_NAME = "UpdateAutoFishingState" -- remote function name di server (ubah jika beda)
-local NET_PACKAGES_FOLDER = "Packages" -- tempat Packages berada di ReplicatedStorage (ubah jika berbeda)
-local RAYFIELD_URL = 'https://sirius.menu/rayfield' -- rayfield loader url (ekspekt: ada)
--- End CONFIG
+-- CONFIGURATION
+local AUTO_FISH_REMOTE_NAME = "UpdateAutoFishingState"
+local NET_PACKAGES_FOLDER = "Packages"
+local RAYFIELD_URL = 'https://sirius.menu/rayfield'
+-- END CONFIG
 
--- safety loader
+-- SAFE LOAD RAYFIELD
 local successLoad, Rayfield = pcall(function()
 	return loadstring(game:HttpGet(RAYFIELD_URL))()
 end)
 if not successLoad or not Rayfield then
-	warn("Rayfield gagal dimuat. Pastikan executor bisa mem-fetch URL: " .. tostring(RAYFIELD_URL))
+	warn("Rayfield gagal dimuat. Pastikan URL Rayfield dapat diakses.")
 	return
 end
 
--- services & vars
+-- SERVICES & VARS
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -28,20 +28,19 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 local autoFishEnabled = false
-local autoFishLoopThread = nil
-local coordinateGui = nil
-local statusParagraph = nil
-local currentSelectedMap = nil
+local autoFishLoopThread
+local coordinateGui
+local statusParagraph
+local currentSelectedMap
 
--- UTIL: remove any UI or asset that contains "money" in name/text (runs in background)
+-- AUTO-HIDE UI "MONEY" ELEMENTS
 task.spawn(function()
 	while task.wait(1) do
 		for _, obj in ipairs(CoreGui:GetDescendants()) do
-			if obj and obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel") then
+			if obj and (obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel")) then
 				local nameLower = (obj.Name or ""):lower()
 				local textLower = (obj.Text or ""):lower()
 				if string.find(nameLower, "money") or string.find(textLower, "money") or string.find(nameLower, "100") or string.find(textLower, "100money") then
-					-- hide and disable interactions
 					pcall(function()
 						obj.Visible = false
 						if obj:IsA("GuiObject") then
@@ -55,9 +54,8 @@ task.spawn(function()
 	end
 end)
 
--- CUSTOM NOTIFY (uses Rayfield Notify but also supports in-game toast GUI)
+-- NOTIFY WRAPPER
 local function Notify(opts)
-	-- opts: Title, Content, Duration (seconds)
 	pcall(function()
 		Rayfield:Notify({
 			Title = opts.Title or "Notification",
@@ -67,93 +65,71 @@ local function Notify(opts)
 	end)
 end
 
--- SAFE get Net remotefunction — robust: waits and checks multiple times
+-- REMOTE FETCHER
 local function GetAutoFishRemote()
-	-- Try to find a RemoteFunction via typical structure: ReplicatedStorage.Packages.Net or similar
 	local ok, NetModule = pcall(function()
 		local folder = ReplicatedStorage:WaitForChild(NET_PACKAGES_FOLDER, 5)
-		-- if folder is a ModuleScript container, require Net
 		if folder then
 			local netCandidate = folder:FindFirstChild("Net")
-			if netCandidate and (netCandidate:IsA("ModuleScript") or netCandidate:IsA("Folder") or netCandidate:IsA("ModuleScript")) then
-				-- require only if ModuleScript
-				if netCandidate:IsA("ModuleScript") then
-					return require(netCandidate)
-				end
+			if netCandidate and netCandidate:IsA("ModuleScript") then
+				return require(netCandidate)
 			end
 		end
-		-- fallback: try require(ReplicatedStorage.Packages.Net)
 		if ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Net") then
 			local m = ReplicatedStorage.Packages.Net
-			if m:IsA("ModuleScript") then
-				return require(m)
-			end
+			if m:IsA("ModuleScript") then return require(m) end
 		end
-		-- final fallback: try require(ReplicatedStorage:FindFirstChild("Net")) if exists
 		if ReplicatedStorage:FindFirstChild("Net") and ReplicatedStorage.Net:IsA("ModuleScript") then
 			return require(ReplicatedStorage.Net)
 		end
-		return nil
 	end)
-	if ok and NetModule then
-		return NetModule
-	end
-	return nil
+	return ok and NetModule or nil
 end
 
--- safe invoke remote function (wrapped)
+-- SAFE REMOTE INVOKE
 local function SafeInvokeAutoFishing(state)
 	pcall(function()
-		-- primary attempt: use Net module remote function call
 		local Net = GetAutoFishRemote()
 		if Net and type(Net.RemoteFunction) == "function" then
-			-- Some Net wrappers expose RemoteFunction(name) factory
 			local ok, rf = pcall(function() return Net:RemoteFunction(AUTO_FISH_REMOTE_NAME) end)
 			if ok and rf then
 				pcall(function() rf:InvokeServer(state) end)
 				return
 			end
 		end
-		-- fallback: try to find RemoteFunction object in ReplicatedStorage by name
-		local rfObj = ReplicatedStorage:FindFirstChild(AUTO_FISH_REMOTE_NAME) or ReplicatedStorage:FindFirstChild("RemoteFunctions") and ReplicatedStorage.RemoteFunctions:FindFirstChild(AUTO_FISH_REMOTE_NAME)
+		local rfObj = ReplicatedStorage:FindFirstChild(AUTO_FISH_REMOTE_NAME)
+			or (ReplicatedStorage:FindFirstChild("RemoteFunctions") and ReplicatedStorage.RemoteFunctions:FindFirstChild(AUTO_FISH_REMOTE_NAME))
 		if rfObj and rfObj:IsA("RemoteFunction") then
 			pcall(function() rfObj:InvokeServer(state) end)
 			return
 		end
-		-- if still not found, attempt to fire a RemoteEvent named similarly (best-effort)
-		local reObj = ReplicatedStorage:FindFirstChild(AUTO_FISH_REMOTE_NAME) or ReplicatedStorage:FindFirstChild("RemoteEvents") and ReplicatedStorage.RemoteEvents:FindFirstChild(AUTO_FISH_REMOTE_NAME)
+		local reObj = ReplicatedStorage:FindFirstChild(AUTO_FISH_REMOTE_NAME)
+			or (ReplicatedStorage:FindFirstChild("RemoteEvents") and ReplicatedStorage.RemoteEvents:FindFirstChild(AUTO_FISH_REMOTE_NAME))
 		if reObj and reObj:IsA("RemoteEvent") then
 			pcall(function() reObj:FireServer(state) end)
-			return
 		end
 	end)
 end
 
--- AUTO FISH START/STOP
+-- AUTO FISH SYSTEM
 local function StartAutoFish()
 	if autoFishEnabled then return end
 	autoFishEnabled = true
-	if statusParagraph then pcall(function() statusParagraph:Set("Status: Enabled") end) end
-	Notify({Title = "Auto Fishing", Content = "Activated", Duration = 2})
+	if statusParagraph then pcall(function() statusParagraph:Set("Status: Active") end) end
+	Notify({Title = "Auto Fishing", Content = "System enabled. Fishing will run automatically.", Duration = 3})
 
 	autoFishLoopThread = task.spawn(function()
 		while autoFishEnabled do
 			pcall(function()
-				-- Attempt server invocation (robust)
 				SafeInvokeAutoFishing(true)
-
-				-- If the game has a custom client Replion-based API, attempt common pattern:
 				if ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Replion") then
-					pcall(function()
-						local Replion = require(ReplicatedStorage.Packages.Replion)
-						if Replion and Replion.Client and type(Replion.Client.WaitReplion) == "function" then
-							local Data = Replion.Client:WaitReplion("Data")
-							-- no-op; just ensure Replion is preloaded
-						end
-					end)
+					local Replion = require(ReplicatedStorage.Packages.Replion)
+					if Replion and Replion.Client and type(Replion.Client.WaitReplion) == "function" then
+						Replion.Client:WaitReplion("Data")
+					end
 				end
 			end)
-			task.wait(4) -- delay between invokes
+			task.wait(4)
 		end
 	end)
 end
@@ -161,34 +137,28 @@ end
 local function StopAutoFish()
 	if not autoFishEnabled then return end
 	autoFishEnabled = false
-	if statusParagraph then pcall(function() statusParagraph:Set("Status: Disabled") end) end
-	Notify({Title = "Auto Fishing", Content = "Stopped", Duration = 2})
-	-- ensure server told to stop
-	pcall(function()
-		SafeInvokeAutoFishing(false)
-	end)
+	if statusParagraph then pcall(function() statusParagraph:Set("Status: Inactive") end) end
+	Notify({Title = "Auto Fishing", Content = "System stopped.", Duration = 3})
+	pcall(function() SafeInvokeAutoFishing(false) end)
 end
 
--- create coordinate GUI (modern)
+-- COORDINATE DISPLAY
 local function CreateCoordinateDisplay()
 	if coordinateGui and coordinateGui.Parent then coordinateGui:Destroy() end
-	local sg = Instance.new("ScreenGui")
+	local sg = Instance.new("ScreenGui", CoreGui)
 	sg.Name = "Anggazyy_Coordinates"
 	sg.ResetOnSpawn = false
-	sg.Parent = CoreGui
 
 	local frame = Instance.new("Frame", sg)
 	frame.Size = UDim2.new(0, 200, 0, 36)
 	frame.Position = UDim2.new(0.5, -100, 0, 12)
-	frame.BackgroundColor3 = Color3.fromRGB(34, 24, 44)
-	frame.BackgroundTransparency = 0
+	frame.BackgroundColor3 = Color3.fromRGB(30, 22, 45)
 	frame.BorderSizePixel = 0
-	frame.AnchorPoint = Vector2.new(0.5, 0)
 	local corner = Instance.new("UICorner", frame)
 	corner.CornerRadius = UDim.new(0.35, 0)
 	local stroke = Instance.new("UIStroke", frame)
-	stroke.Color = Color3.fromRGB(128, 80, 255)
-	stroke.Thickness = 1.6
+	stroke.Color = Color3.fromRGB(120, 85, 255)
+	stroke.Thickness = 1.5
 
 	local label = Instance.new("TextLabel", frame)
 	label.Size = UDim2.new(1, -12, 1, 0)
@@ -197,18 +167,16 @@ local function CreateCoordinateDisplay()
 	label.TextColor3 = Color3.fromRGB(235, 235, 245)
 	label.Font = Enum.Font.GothamSemibold
 	label.TextSize = 14
-	label.Text = "X: 0 | Y: 0 | Z: 0"
 	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Text = "X: 0 | Y: 0 | Z: 0"
 
 	coordinateGui = sg
-
-	-- update loop
 	task.spawn(function()
 		while coordinateGui and coordinateGui.Parent do
 			local char = LocalPlayer.Character
 			if char and char:FindFirstChild("HumanoidRootPart") then
 				local pos = char.HumanoidRootPart.Position
-				label.Text = string.format("X: %d | Y: %d | Z: %d", math.floor(pos.X), math.floor(pos.Y), math.floor(pos.Z))
+				label.Text = string.format("X: %d | Y: %d | Z: %d", pos.X, pos.Y, pos.Z)
 			else
 				label.Text = "X: - | Y: - | Z: -"
 			end
@@ -217,20 +185,17 @@ local function CreateCoordinateDisplay()
 	end)
 end
 
--- DESTROY coordinate
 local function DestroyCoordinateDisplay()
-	if coordinateGui and coordinateGui.Parent then
-		pcall(function() coordinateGui:Destroy() end)
-		coordinateGui = nil
-	end
+	if coordinateGui and coordinateGui.Parent then coordinateGui:Destroy() end
+	coordinateGui = nil
 end
 
--- Create main Rayfield window
+-- WINDOW SETUP
 local Window = Rayfield:CreateWindow({
 	Name = "Anggazyy Hub - Fish It",
-	Icon = "fish", -- lucide icon name
+	Icon = "fish",
 	LoadingTitle = "Anggazyy Hub",
-	LoadingSubtitle = "Fish It Automation",
+	LoadingSubtitle = "Advanced Fishing Automation",
 	Theme = "Dark",
 	ShowText = "AnggazyyHub",
 	ToggleUIKeybind = Enum.KeyCode.K,
@@ -241,118 +206,91 @@ local Window = Rayfield:CreateWindow({
 	}
 })
 
--- ========== INFO TAB ==========
-local InfoTab = Window:CreateTab("Info & Guide", "info")
+-- INFO TAB
+local InfoTab = Window:CreateTab("Information", "info")
 InfoTab:CreateParagraph({
-	Title = "Welcome",
-	Content = "Anggazyy Hub - Fish It (Rayfield Final). Clean UI, Lucide icons, no money icon. Use responsibly."
+	Title = "Welcome to Anggazyy Hub",
+	Content = "A professional automation hub for Fish It. This version uses Lucide icons, refined layout, and modern UI language."
 })
 InfoTab:CreateParagraph({
-	Title = "Features",
-	Content = "Auto Fishing (stable), Coordinate Display, Teleport, Player Boost, Modern UI with gradient & animations."
+	Title = "Overview",
+	Content = "Includes: Auto Fishing, Teleport System, Player Boosts, Live Coordinates, and Configurable Settings."
 })
 
--- ========== AUTO SYSTEM TAB ==========
-local AutoTab = Window:CreateTab("Auto System", "fish")
-
--- label (modern style)
+-- AUTO SYSTEM TAB
+local AutoTab = Window:CreateTab("Automation", "fish")
 AutoTab:CreateParagraph({
-	Title = "Auto Fishing System",
-	Content = "Auto Fish ensures automatic casting + catching. Toggle ON untuk menjalankan. Pastikan Remote/Net tersedia di ReplicatedStorage."
+	Title = "Auto Fishing Engine",
+	Content = "Automatically casts and reels fish using secure remote calls. Ensure the game remotes are available before enabling."
 })
 
--- status paragraph
 statusParagraph = AutoTab:CreateParagraph({
-	Title = "Status:",
-	Content = "Status: Disabled"
+	Title = "System Status",
+	Content = "Status: Inactive"
 })
 
--- Auto toggle (robust callback)
 AutoTab:CreateToggle({
 	Name = "Enable Auto Fishing",
 	CurrentValue = false,
 	Flag = "AutoFishToggle",
 	Callback = function(state)
-		-- guard: if local player is nil
 		if not LocalPlayer then
-			Notify({Title = "Auto Fish", Content = "Player tidak tersedia.", Duration = 3})
-			return
+			return Notify({Title = "Auto Fishing", Content = "Local player not found.", Duration = 3})
 		end
-
-		if state then
-			-- try start
-			local ok, err = pcall(function() StartAutoFish() end)
-			if not ok then
-				Notify({Title = "Auto Fish Error", Content = tostring(err or "Unknown error"), Duration = 4})
-			end
-		else
-			local ok, err = pcall(function() StopAutoFish() end)
-			if not ok then
-				Notify({Title = "Auto Fish Error", Content = tostring(err or "Unknown error"), Duration = 4})
-			end
+		local ok, err = pcall(function()
+			if state then StartAutoFish() else StopAutoFish() end
+		end)
+		if not ok then
+			Notify({Title = "Auto Fishing Error", Content = tostring(err), Duration = 4})
 		end
 	end
 })
 
--- Additional settings paragraph with color hint (example color-coded label)
 AutoTab:CreateParagraph({
-	Title = "Info Color",
-	Content = "Label color example: Enabled (green), Disabled (red). Use Toggle untuk switch."
+	Title = "Operation Notes",
+	Content = "The system runs every few seconds and syncs with the server to maintain a stable auto-fishing cycle."
 })
 
--- ========== TELEPORT TAB ==========
+-- TELEPORT TAB
 local TeleportTab = Window:CreateTab("Teleport", "map-pin")
-
 TeleportTab:CreateParagraph({
-	Title = "Teleport Map Select",
-	Content = "Pilih map pada dropdown, lalu tekan GO untuk teleport. Coordinates ditampilkan jika aktif."
+	Title = "Map Selection",
+	Content = "Select a fishing zone and instantly teleport there. You can also enable coordinate display for position tracking."
 })
 
--- Dropdown maps
 local maps = {
 	{Label = "Coral Bay", Value = "Coral Bay", Pos = Vector3.new(0, 10, 0)},
 	{Label = "Ocean Depths", Value = "Ocean Depths", Pos = Vector3.new(200, 12, 300)},
 	{Label = "Ice Lake", Value = "Ice Lake", Pos = Vector3.new(-150, 8, -400)},
 	{Label = "City Center", Value = "City Center", Pos = Vector3.new(100, 30, 100)}
 }
-
 local defaultMap = maps[1].Value
 
 TeleportTab:CreateDropdown({
-	Name = "Select Map",
-	Options = (function()
-		local out = {}
-		for _,m in ipairs(maps) do table.insert(out, m.Value) end
-		return out
-	end)(),
+	Name = "Select Destination",
+	Options = (function() local o = {}; for _, m in ipairs(maps) do table.insert(o, m.Value) end; return o end)(),
 	CurrentOption = defaultMap,
 	Flag = "MapSelect",
 	Callback = function(selected)
 		currentSelectedMap = selected
-		Notify({Title = "Map Selected", Content = tostring(selected), Duration = 2})
+		Notify({Title = "Map Updated", Content = selected .. " selected.", Duration = 2})
 	end
 })
 
--- go button to teleport to selected
 TeleportTab:CreateButton({
-	Name = "Go To Selected Map",
+	Name = "Teleport to Selected Map",
 	Callback = function()
-		if not currentSelectedMap then currentSelectedMap = defaultMap end
-		-- find pos
-		local chosen = nil
-		for _,m in ipairs(maps) do
-			if m.Value == currentSelectedMap then chosen = m; break end
-		end
+		local chosen
+		for _, m in ipairs(maps) do if m.Value == currentSelectedMap then chosen = m end end
 		if chosen and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 			LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(chosen.Pos)
-			Notify({Title = "Teleport", Content = "Teleported to ".. chosen.Value, Duration = 2})
+			Notify({Title = "Teleport", Content = "Teleported to " .. chosen.Value, Duration = 2})
 		else
-			Notify({Title = "Teleport Error", Content = "Gagal teleport. Pastikan karakter siap.", Duration = 3})
+			Notify({Title = "Teleport Error", Content = "Unable to teleport. Try again.", Duration = 3})
 		end
 	end
 })
 
--- toggle coordinate display
 TeleportTab:CreateToggle({
 	Name = "Show Coordinates",
 	CurrentValue = false,
@@ -360,119 +298,102 @@ TeleportTab:CreateToggle({
 	Callback = function(v)
 		if v then
 			CreateCoordinateDisplay()
-			Notify({Title = "Coordinates", Content = "Coordinate display enabled", Duration = 2})
+			Notify({Title = "Coordinates", Content = "Display enabled.", Duration = 2})
 		else
 			DestroyCoordinateDisplay()
-			Notify({Title = "Coordinates", Content = "Coordinate display disabled", Duration = 2})
+			Notify({Title = "Coordinates", Content = "Display hidden.", Duration = 2})
 		end
 	end
 })
 
--- ========== PLAYER TAB ==========
+-- PLAYER TAB
 local PlayerTab = Window:CreateTab("Player", "user")
-
 PlayerTab:CreateParagraph({
-	Title = "Player Boost",
-	Content = "Adjust walk speed & jump power. Values will apply to the local humanoid when changed."
+	Title = "Player Modifiers",
+	Content = "Adjust your walk speed or jump power safely. Restoring defaults is possible anytime."
 })
-
 PlayerTab:CreateSlider({
 	Name = "Walk Speed",
 	Range = {16, 200},
 	Increment = 1,
 	CurrentValue = 16,
 	Callback = function(val)
-		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-			LocalPlayer.Character.Humanoid.WalkSpeed = val
-		end
+		local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+		if h then h.WalkSpeed = val end
 	end
 })
-
 PlayerTab:CreateSlider({
 	Name = "Jump Power",
 	Range = {50, 350},
 	Increment = 1,
 	CurrentValue = 50,
 	Callback = function(val)
-		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-			LocalPlayer.Character.Humanoid.JumpPower = val
-		end
+		local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+		if h then h.JumpPower = val end
 	end
 })
-
--- reset player values
 PlayerTab:CreateButton({
-	Name = "Reset Player Values",
+	Name = "Reset Player Attributes",
 	Callback = function()
-		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-			LocalPlayer.Character.Humanoid.WalkSpeed = 16
-			LocalPlayer.Character.Humanoid.JumpPower = 50
-			Notify({Title = "Player", Content = "Reset to default values.", Duration = 2})
+		local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+		if h then
+			h.WalkSpeed = 16
+			h.JumpPower = 50
+			Notify({Title = "Player", Content = "Attributes restored to default.", Duration = 2})
 		end
 	end
 })
 
--- ========== SETTINGS TAB ==========
+-- SETTINGS TAB
 local SettingsTab = Window:CreateTab("Settings", "settings")
-
 SettingsTab:CreateParagraph({
-	Title = "General Settings",
-	Content = "Save / Load configuration, Unload script, and other utilities."
+	Title = "General Options",
+	Content = "Manage UI visibility, configuration saving, and utility commands below."
 })
-
 SettingsTab:CreateButton({
-	Name = "Unload Script (Destroy UI)",
+	Name = "Unload Script & Close UI",
 	Callback = function()
-		-- stop auto fish before unloading
 		pcall(function() StopAutoFish() end)
-		-- destroy Rayfield UI
 		pcall(function() Rayfield:Destroy() end)
-		-- destroy coordinates
 		DestroyCoordinateDisplay()
-		Notify({Title = "Unload", Content = "Script unloaded.", Duration = 2})
+		Notify({Title = "Unload", Content = "All UI closed and scripts stopped.", Duration = 3})
 	end
 })
-
 SettingsTab:CreateButton({
-	Name = "Force Hide Money Icons Now",
+	Name = "Force Hide Money Icons",
 	Callback = function()
 		task.spawn(function()
 			for _, obj in ipairs(CoreGui:GetDescendants()) do
-				local ok, _ = pcall(function()
-					if (obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel")) then
-						local nameLower = (obj.Name or ""):lower()
-						local textLower = (obj.Text or ""):lower()
-						if string.find(nameLower, "money") or string.find(textLower, "money") or string.find(nameLower, "100") then
-							obj.Visible = false
-						end
+				pcall(function()
+					if (obj:IsA("ImageLabel") or obj:IsA("TextLabel")) then
+						local n, t = obj.Name:lower(), (obj.Text or ""):lower()
+						if string.find(n, "money") or string.find(t, "money") then obj.Visible = false end
 					end
 				end)
 			end
 		end)
-		Notify({Title = "Hide Money", Content = "Attempted to hide any money-related icons.", Duration = 2})
+		Notify({Title = "UI Cleanup", Content = "Money-related icons hidden.", Duration = 2})
 	end
 })
-
 SettingsTab:CreateParagraph({
 	Title = "Credits",
-	Content = "Created by Anggazyy | Rayfield UI (Lucide icons)."
+	Content = "Developed by Anggazyy | Rayfield UI + Lucide Icons | Stable Automation v3.0"
 })
 
--- ========== THEME & SUBTLE ANIMATIONS ==========
--- Attempt to animate main frame background color with tween
+-- BACKGROUND ANIMATION
 pcall(function()
-	local mainBG = Window.UIElements and Window.UIElements.MainFrame and Window.UIElements.MainFrame.Background
-	if mainBG then
+	local bg = Window.UIElements and Window.UIElements.MainFrame and Window.UIElements.MainFrame.Background
+	if bg then
 		task.spawn(function()
 			local colors = {
-				Color3.fromRGB(30, 18, 45),
-				Color3.fromRGB(35, 22, 55),
-				Color3.fromRGB(25, 18, 40),
+				Color3.fromRGB(25, 20, 40),
+				Color3.fromRGB(35, 25, 55),
+				Color3.fromRGB(30, 22, 50)
 			}
 			local i = 1
-			while task.wait(6) and mainBG.Parent do
-				local nextI = i % #colors + 1
-				local tween = TweenService:Create(mainBG, TweenInfo.new(5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = colors[nextI]})
+			while task.wait(6) and bg.Parent do
+				local nextI = (i % #colors) + 1
+				local tween = TweenService:Create(bg, TweenInfo.new(5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundColor3 = colors[nextI]})
 				tween:Play()
 				i = nextI
 			end
@@ -480,12 +401,6 @@ pcall(function()
 	end
 end)
 
--- Load configuration (Rayfield will restore previous toggle states, dropdown, sliders, etc.)
+-- LOAD CONFIG & INIT
 pcall(function() Rayfield:LoadConfiguration() end)
-
--- final notify
-Notify({Title = "Anggazyy Hub", Content = "Loaded successfully. Press [K] to toggle UI.", Duration = 4})
-
---//////////////////////////////////////////////////////////////////////////////////
--- End of script
---//////////////////////////////////////////////////////////////////////////////////
+Notify({Title = "Anggazyy Hub", Content = "Loaded successfully. Press [K] to toggle the UI.", Duration = 4})
