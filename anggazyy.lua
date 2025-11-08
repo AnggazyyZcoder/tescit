@@ -29,6 +29,8 @@ local AUTO_BUY_ENABLED = false
 local AUTO_BUY_LOOP = nil
 local MERCHANT_ITEMS = {}
 local SELECTED_ITEM = nil
+local merchantData = nil
+local playerData = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -242,104 +244,114 @@ end
 -- MERCHANT AUTO BUYER SYSTEM - FIXED VERSION
 -- =============================================================================
 
--- Load required modules safely
-local function LoadModule(modulePath)
-    local success, module = pcall(function()
-        return require(modulePath)
-    end)
-    return success and module or nil
-end
-
--- Get Merchant Data directly
-local function GetMerchantData()
-    local success, result = pcall(function()
-        -- Try to get merchant data from Replion
-        local Replion = LoadModule(ReplicatedStorage.Packages.Replion)
-        if Replion then
-            local merchantData = Replion.Client:WaitReplion("Merchant")
-            if merchantData then
-                return merchantData:GetExpect("Items") or {}
-            end
-        end
-        return {}
-    end)
-    return success and result or {}
-end
-
--- Get Player Data
-local function GetPlayerData()
-    local success, result = pcall(function()
-        local Replion = LoadModule(ReplicatedStorage.Packages.Replion)
-        if Replion then
-            return Replion.Client:WaitReplion("Data")
-        end
-        return nil
-    end)
-    return success and result or nil
-end
-
--- Simple item purchase function
-local function SimplePurchase(itemId)
-    local success, result = pcall(function()
-        local Net = LoadModule(ReplicatedStorage.Packages.Net)
-        if Net then
-            local purchaseRemote = Net:RemoteFunction("PurchaseMarketItem")
-            return purchaseRemote:InvokeServer(itemId)
-        end
-        return false
-    end)
-    return success and result or false
-end
-
--- Get player balance simply
-local function GetSimpleBalance(currencyType)
-    local playerData = GetPlayerData()
-    if not playerData then return 0 end
+-- Load required modules
+local function LoadModules()
+    local modules = {}
     
-    if currencyType == "Coins" then
-        return playerData:Get("Coins") or 0
-    elseif currencyType == "Gems" then
-        return playerData:Get("Gems") or 0
+    modules.GuiControl = require(ReplicatedStorage.Modules.GuiControl)
+    modules.CurrencyUtility = require(ReplicatedStorage.Modules.CurrencyUtility)
+    modules.ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+    modules.TierUtility = require(ReplicatedStorage.Shared.TierUtility)
+    modules.MarketItemData = require(ReplicatedStorage.Shared.MarketItemData)
+    modules.PlayerStatsUtility = require(ReplicatedStorage.Shared.PlayerStatsUtility)
+    modules.InventoryMapping = require(ReplicatedStorage.Shared.InventoryMapping)
+    modules.Net = require(ReplicatedStorage.Packages.Net)
+    modules.Replion = require(ReplicatedStorage.Packages.Replion)
+    
+    return modules
+end
+
+-- Initialize Merchant Data
+local function InitializeMerchantData()
+    local modules = LoadModules()
+    merchantData = modules.Replion.Client:WaitReplion("Merchant")
+    playerData = modules.Replion.Client:WaitReplion("Data")
+end
+
+-- Get Market Data From ID
+local function GetMarketDataFromId(itemId)
+    local modules = LoadModules()
+    for _, itemData in ipairs(modules.MarketItemData) do
+        if itemData.Id == itemId then
+            return itemData
+        end
     end
-    return 0
+    return nil
+end
+
+-- Get Item Display Name
+local function GetItemDisplayName(marketData)
+    local modules = LoadModules()
+    local itemData = modules.ItemUtility.GetItemDataFromItemType(marketData.Type, marketData.Identifier)
+    if itemData and itemData.Data then
+        return itemData.Data.Name or "Unknown Item"
+    end
+    return "Unknown Item"
 end
 
 -- Scan merchant items - FIXED VERSION
 local function ScanMerchantItems()
     MERCHANT_ITEMS = {}
     
-    local merchantItemIds = GetMerchantData()
-    
-    for _, itemId in ipairs(merchantItemIds) do
-        -- Create simple item data without complex module dependencies
-        table.insert(MERCHANT_ITEMS, {
-            Id = itemId,
-            Name = "Item " .. tostring(itemId),
-            Price = 100, -- Default price
-            Currency = "Coins", -- Default currency
-            DisplayName = "Item " .. tostring(itemId) .. " - 100 Coins"
-        })
+    if not merchantData then
+        InitializeMerchantData()
     end
     
-    -- If no items found, add some sample items for testing
-    if #MERCHANT_ITEMS == 0 then
-        table.insert(MERCHANT_ITEMS, {
-            Id = 1,
-            Name = "Test Rod",
-            Price = 500,
-            Currency = "Coins",
-            DisplayName = "Test Fishing Rod - 500 Coins"
-        })
-        table.insert(MERCHANT_ITEMS, {
-            Id = 2,
-            Name = "Test Bait",
-            Price = 50,
-            Currency = "Coins", 
-            DisplayName = "Test Bait - 50 Coins"
-        })
+    local merchantItemIds = merchantData:GetExpect("Items") or {}
+    
+    for _, itemId in ipairs(merchantItemIds) do
+        local marketData = GetMarketDataFromId(itemId)
+        if marketData and not marketData.SkinCrate then
+            local itemName = GetItemDisplayName(marketData)
+            local displayName = string.format("%s - %d %s", 
+                itemName, 
+                marketData.Price or 0, 
+                marketData.Currency or "Coins")
+                
+            table.insert(MERCHANT_ITEMS, {
+                Id = itemId,
+                Name = itemName,
+                Price = marketData.Price,
+                Currency = marketData.Currency,
+                Type = marketData.Type,
+                Identifier = marketData.Identifier,
+                ProductId = marketData.ProductId,
+                SingleCopy = marketData.SingleCopy,
+                DisplayName = displayName,
+                MarketData = marketData
+            })
+        end
     end
     
     return #MERCHANT_ITEMS
+end
+
+-- Check if Player Owns Item
+local function OwnsLocalItem(itemData)
+    local modules = LoadModules()
+    local itemInfo = modules.ItemUtility.GetItemDataFromItemType(itemData.Type, itemData.Identifier)
+    if not itemInfo then
+        return false
+    end
+    
+    local ownsItem = modules.PlayerStatsUtility:GetItemFromInventory(playerData, function(invItem)
+        return invItem.Id == itemInfo.Data.Id
+    end, modules.InventoryMapping[itemData.Type or "Items"])
+    
+    return ownsItem or false
+end
+
+-- Get player balance
+local function GetPlayerBalance(currencyType)
+    if not playerData then return 0 end
+    
+    local modules = LoadModules()
+    local currencyInfo = modules.CurrencyUtility:GetCurrency(currencyType)
+    
+    if currencyInfo and playerData then
+        return playerData:Get(currencyInfo.Path) or 0
+    end
+    return 0
 end
 
 -- Purchase item - FIXED VERSION
@@ -348,24 +360,48 @@ local function PurchaseItem(itemData)
         return false, "No item selected"
     end
     
-    -- Check balance
-    local balance = GetSimpleBalance(itemData.Currency)
-    if balance < itemData.Price then
-        return false, string.format("Insufficient %s. Need: %d, Have: %d", 
-            itemData.Currency, itemData.Price, balance)
+    -- Check if already owns single copy item
+    if itemData.SingleCopy and OwnsLocalItem(itemData) then
+        return false, "Already owns this item"
     end
     
-    -- Attempt purchase
-    local success = SimplePurchase(itemData.Id)
-    
-    if success then
-        return true, "Purchase successful!"
-    else
-        return false, "Purchase failed - server error"
+    -- Handle Robux purchases
+    if itemData.ProductId then
+        MarketplaceService:PromptProductPurchase(LocalPlayer, itemData.ProductId)
+        return true, "Robux purchase prompted"
     end
+    
+    -- Handle in-game currency purchases
+    if itemData.Price then
+        local modules = LoadModules()
+        local currencyInfo = modules.CurrencyUtility:GetCurrency(itemData.Currency)
+        if not currencyInfo then
+            return false, "Invalid currency type"
+        end
+        
+        local playerBalance = GetPlayerBalance(itemData.Currency)
+        if playerBalance < itemData.Price then
+            return false, string.format("Insufficient %s. Need: %d, Have: %d", 
+                itemData.Currency, itemData.Price, playerBalance)
+        end
+        
+        -- Attempt purchase
+        local success, result = pcall(function()
+            local purchaseRemote = modules.Net:RemoteFunction("PurchaseMarketItem")
+            return purchaseRemote:InvokeServer(itemData.Id)
+        end)
+        
+        if success and result then
+            return true, "Purchase successful!"
+        else
+            return false, "Purchase failed - server error"
+        end
+    end
+    
+    return false, "Item not available for purchase"
 end
 
--- Auto Buy System - FIXED VERSION
+-- Auto Buy System
 local function StartAutoBuy()
     if AUTO_BUY_ENABLED then return end
     
@@ -406,12 +442,19 @@ local function StartAutoBuy()
                     })
                     AUTO_BUY_ENABLED = false
                     break
+                elseif string.find(message, "Already owns") then
+                    Notify({
+                        Title = "Auto Buy Completed", 
+                        Content = "Already own this item",
+                        Duration = 3
+                    })
+                    AUTO_BUY_ENABLED = false
+                    break
                 end
-                -- If not insufficient funds, continue trying
             end
             
             purchaseAttempts += 1
-            task.wait(0.5) -- Faster retry
+            task.wait(0.5)
         end
         
         if purchaseAttempts >= maxAttempts then
@@ -522,7 +565,7 @@ local MerchantTab = Window:CreateTab("Merchant Auto Buyer", "store")
 
 MerchantTab:CreateParagraph({
     Title = "Merchant Auto Purchase System",
-    Content = "Automatically purchase items from merchant shop. Simple and reliable purchase system."
+    Content = "Automatically purchase items from merchant shop. Scan items first, then select and purchase."
 })
 
 -- Balance Display
@@ -554,88 +597,76 @@ local itemDropdown = MerchantTab:CreateDropdown({
     end
 })
 
--- Refresh Items Button - FIXED
+-- Refresh Items Button
 MerchantTab:CreateButton({
     Name = "Scan Merchant Items",
     Callback = function()
-        local success, itemCount = pcall(function()
-            return ScanMerchantItems()
-        end)
+        InitializeMerchantData()
+        local itemCount = ScanMerchantItems()
         
-        if success and itemCount > 0 then
+        if itemCount > 0 then
             -- Update dropdown
             local newOptions = {}
             for _, item in ipairs(MERCHANT_ITEMS) do
                 table.insert(newOptions, item.DisplayName)
             end
             
-            pcall(function()
-                itemDropdown:Refresh(newOptions, true)
-            end)
+            itemDropdown:Refresh(newOptions, true)
+            
+            -- Auto select first item
+            SELECTED_ITEM = MERCHANT_ITEMS[1]
             
             -- Update balance
-            local coins = GetSimpleBalance("Coins")
-            local gems = GetSimpleBalance("Gems")
+            local coins = GetPlayerBalance("Coins")
+            local gems = GetPlayerBalance("Gems")
             balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
             
             Notify({
                 Title = "Scan Complete", 
-                Content = string.format("Found %d available items", itemCount),
-                Duration = 3
+                Content = string.format("Found %d available items. Auto-selected: %s", itemCount, SELECTED_ITEM.Name),
+                Duration = 4
             })
         else
             Notify({
                 Title = "Scan Failed", 
-                Content = "Failed to scan merchant items",
+                Content = "No items found in merchant",
                 Duration = 3
             })
         end
     end
 })
 
--- Single Purchase Button - FIXED
+-- Single Purchase Button
 MerchantTab:CreateButton({
     Name = "Single Purchase",
     Callback = function()
         if not SELECTED_ITEM then
-            Notify({Title = "Purchase Error", Content = "Please select an item first", Duration = 3})
+            Notify({Title = "Purchase Error", Content = "Please scan and select an item first", Duration = 3})
             return
         end
         
-        local success, message = pcall(function()
-            return PurchaseItem(SELECTED_ITEM)
-        end)
-        
+        local success, message = PurchaseItem(SELECTED_ITEM)
         if success then
-            local purchaseSuccess, purchaseMessage = PurchaseItem(SELECTED_ITEM)
-            if purchaseSuccess then
-                Notify({
-                    Title = "Purchase Successful", 
-                    Content = purchaseMessage,
-                    Duration = 3
-                })
-                -- Refresh balance after purchase
-                local coins = GetSimpleBalance("Coins")
-                local gems = GetSimpleBalance("Gems")
-                balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
-            else
-                Notify({
-                    Title = "Purchase Failed", 
-                    Content = purchaseMessage or "Unknown error",
-                    Duration = 4
-                })
-            end
+            Notify({
+                Title = "Purchase Successful", 
+                Content = message,
+                Duration = 3
+            })
+            -- Refresh balance after purchase
+            local coins = GetPlayerBalance("Coins")
+            local gems = GetPlayerBalance("Gems")
+            balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
         else
             Notify({
-                Title = "Purchase Error", 
-                Content = "Failed to process purchase",
+                Title = "Purchase Failed", 
+                Content = message,
                 Duration = 4
             })
         end
     end
 })
 
--- Auto Buy Toggle - FIXED
+-- Auto Buy Toggle
 MerchantTab:CreateToggle({
     Name = "Enable Auto Buy",
     CurrentValue = false,
@@ -664,31 +695,32 @@ MerchantTab:CreateButton({
 
 -- Auto scan on startup
 task.spawn(function()
-    task.wait(2)
-    local success, itemCount = pcall(function()
-        return ScanMerchantItems()
-    end)
+    task.wait(3)
+    InitializeMerchantData()
+    local itemCount = ScanMerchantItems()
     
-    if success and itemCount > 0 then
+    if itemCount > 0 then
         -- Update dropdown
         local newOptions = {}
         for _, item in ipairs(MERCHANT_ITEMS) do
             table.insert(newOptions, item.DisplayName)
         end
         
-        pcall(function()
-            itemDropdown:Refresh(newOptions, true)
-        end)
-        
-        -- Update balance
-        local coins = GetSimpleBalance("Coins")
-        local gems = GetSimpleBalance("Gems")
-        balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
+        itemDropdown:Refresh(newOptions, true)
         
         -- Auto select first item
-        if #MERCHANT_ITEMS > 0 then
-            SELECTED_ITEM = MERCHANT_ITEMS[1]
-        end
+        SELECTED_ITEM = MERCHANT_ITEMS[1]
+        
+        -- Update balance
+        local coins = GetPlayerBalance("Coins")
+        local gems = GetPlayerBalance("Gems")
+        balanceParagraph:Set(string.format("Coins: %d | Gems: %d", coins, gems))
+        
+        Notify({
+            Title = "Auto Scan Complete", 
+            Content = string.format("Auto-loaded %d items. Selected: %s", itemCount, SELECTED_ITEM.Name),
+            Duration = 4
+        })
     end
 end)
 
