@@ -37,6 +37,9 @@ local originalGraphicsSettings = {}
 -- Bypass Variables
 local fishingRadarEnabled = false
 local divingGearEnabled = false
+local autoSellEnabled = false
+local autoSellThreshold = 3
+local autoSellLoop = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -164,7 +167,7 @@ local function StopAutoFish()
 end
 
 -- =============================================================================
--- ENHANCED ANTI LAG SYSTEM
+-- ULTRA ANTI LAG SYSTEM - WHITE TEXTURE MODE
 -- =============================================================================
 
 -- Save original graphics settings
@@ -181,29 +184,32 @@ local function SaveOriginalGraphics()
     }
 end
 
--- Enhanced Anti Lag System
+-- Ultra Anti Lag System - White Texture Mode
 local function EnableAntiLag()
     if antiLagEnabled then return end
     
     SaveOriginalGraphics()
     antiLagEnabled = true
     
-    -- Extreme graphics optimization
+    -- Extreme graphics optimization with white textures
     pcall(function()
         -- Graphics quality settings
         UserGameSettings.GraphicsQualityLevel = 1
         UserGameSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
         
-        -- Lighting optimization
+        -- Lighting optimization - Bright white environment
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 999999
-        Lighting.Brightness = 2
+        Lighting.Brightness = 5  -- Extra bright
         Lighting.ShadowSoftness = 0
-        Lighting.EnvironmentDiffuseScale = 0
+        Lighting.EnvironmentDiffuseScale = 1
         Lighting.EnvironmentSpecularScale = 0
-        Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
+        Lighting.OutdoorAmbient = Color3.new(1, 1, 1)  -- Pure white ambient
+        Lighting.Ambient = Color3.new(1, 1, 1)  -- Pure white
+        Lighting.ColorShift_Bottom = Color3.new(1, 1, 1)
+        Lighting.ColorShift_Top = Color3.new(1, 1, 1)
         
-        -- Terrain optimization
+        -- Terrain optimization - White terrain
         if workspace.Terrain then
             workspace.Terrain.Decoration = false
             workspace.Terrain.WaterReflectance = 0
@@ -212,9 +218,20 @@ local function EnableAntiLag()
             workspace.Terrain.WaterWaveSpeed = 0
         end
         
-        -- Disable all particles and effects
+        -- Make all parts white and disable effects
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") then
+            if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+                -- Set all parts to white
+                if obj:FindFirstChildOfClass("Texture") then
+                    obj:FindFirstChildOfClass("Texture"):Destroy()
+                end
+                if obj:FindFirstChildOfClass("Decal") then
+                    obj:FindFirstChildOfClass("Decal"):Destroy()
+                end
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.BrickColor = BrickColor.new("White")
+                obj.Reflectance = 0
+            elseif obj:IsA("ParticleEmitter") then
                 obj.Enabled = false
             elseif obj:IsA("Fire") then
                 obj.Enabled = false
@@ -231,11 +248,11 @@ local function EnableAntiLag()
             end
         end
         
-        -- Reduce texture quality
+        -- Reduce texture quality to minimum
         settings().Rendering.QualityLevel = 1
     end)
     
-    Notify({Title = "Anti Lag", Content = "Extreme graphics optimization enabled", Duration = 3})
+    Notify({Title = "Ultra Anti Lag", Content = "White texture mode enabled - Maximum performance", Duration = 3})
 end
 
 local function DisableAntiLag()
@@ -278,12 +295,11 @@ local function DisableAntiLag()
             workspace.Terrain.WaterWaveSpeed = 10
         end
         
-        -- Restore particles and effects
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Beam") or obj:IsA("Trail") then
-                obj.Enabled = true
-            end
-        end
+        -- Restore lighting
+        Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
+        Lighting.Ambient = Color3.new(0.5, 0.5, 0.5)
+        Lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
+        Lighting.ColorShift_Top = Color3.new(0, 0, 0)
         
         -- Restore texture quality
         settings().Rendering.QualityLevel = 10
@@ -361,7 +377,7 @@ local function StopLockPosition()
 end
 
 -- =============================================================================
--- BYPASS SYSTEM - FISHING RADAR & DIVING GEAR
+-- BYPASS SYSTEM - FISHING RADAR, DIVING GEAR & AUTO SELL
 -- =============================================================================
 
 -- Fishing Radar System
@@ -497,6 +513,91 @@ local function StopDivingGear()
     else
         Notify({Title = "Diving Gear Error", Content = message, Duration = 4})
     end
+end
+
+-- Auto Sell System
+local function ManualSellAllFish()
+    local success, result = pcall(function()
+        local VendorController = require(ReplicatedStorage.Controllers.VendorController)
+        if VendorController and VendorController.SellAllItems then
+            VendorController:SellAllItems()
+            return true, "All fish sold successfully!"
+        else
+            return false, "VendorController not found"
+        end
+    end)
+    
+    if success then
+        Notify({Title = "Manual Sell", Content = result, Duration = 3})
+    else
+        Notify({Title = "Sell Error", Content = result, Duration = 4})
+    end
+end
+
+local function StartAutoSell()
+    if autoSellEnabled then return end
+    autoSellEnabled = true
+    
+    autoSellLoop = task.spawn(function()
+        while autoSellEnabled do
+            pcall(function()
+                local Replion = require(ReplicatedStorage.Packages.Replion)
+                local Data = Replion.Client:WaitReplion("Data")
+                local VendorController = require(ReplicatedStorage.Controllers.VendorController)
+                
+                if Data and VendorController and VendorController.SellAllItems then
+                    local inventory = Data:Get("Inventory")
+                    if inventory and inventory.Fish then
+                        local fishCount = 0
+                        for _, fish in pairs(inventory.Fish) do
+                            fishCount = fishCount + (fish.Amount or 1)
+                        end
+                        
+                        if fishCount >= autoSellThreshold then
+                            VendorController:SellAllItems()
+                            Notify({
+                                Title = "Auto Sell", 
+                                Content = string.format("Sold %d fish automatically", fishCount),
+                                Duration = 2
+                            })
+                        end
+                    end
+                end
+            end)
+            task.wait(2) -- Check every 2 seconds
+        end
+    end)
+    
+    Notify({
+        Title = "Auto Sell Started", 
+        Content = string.format("Auto selling when fish count >= %d", autoSellThreshold),
+        Duration = 3
+    })
+end
+
+local function StopAutoSell()
+    if not autoSellEnabled then return end
+    autoSellEnabled = false
+    
+    if autoSellLoop then
+        task.cancel(autoSellLoop)
+        autoSellLoop = nil
+    end
+    
+    Notify({Title = "Auto Sell", Content = "Auto sell stopped", Duration = 2})
+end
+
+local function SetAutoSellThreshold(amount)
+    if type(amount) == "number" and amount > 0 then
+        autoSellThreshold = amount
+        Notify({
+            Title = "Auto Sell Threshold", 
+            Content = string.format("Threshold set to %d fish", amount),
+            Duration = 3
+        })
+        return true
+    end
+    return false
 end
 
 -- Auto Radar Toggle with safety
@@ -679,6 +780,39 @@ BypassTab:CreateButton({
     Callback = SafeToggleDivingGear
 })
 
+-- Auto Sell Section
+BypassTab:CreateSection("Auto Sell Fish")
+
+BypassTab:CreateToggle({
+    Name = "Auto Sell Fish",
+    CurrentValue = false,
+    Flag = "AutoSellToggle",
+    Callback = function(state)
+        if state then
+            StartAutoSell()
+        else
+            StopAutoSell()
+        end
+    end
+})
+
+BypassTab:CreateSlider({
+    Name = "Sell Threshold",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = 3,
+    Suffix = "fish",
+    Flag = "AutoSellThreshold",
+    Callback = function(value)
+        SetAutoSellThreshold(value)
+    end
+})
+
+BypassTab:CreateButton({
+    Name = "Sell All Fish Now",
+    Callback = ManualSellAllFish
+})
+
 -- Quick Actions Section
 BypassTab:CreateSection("Quick Actions")
 
@@ -687,6 +821,7 @@ BypassTab:CreateButton({
     Callback = function()
         StartFishingRadar()
         StartDivingGear()
+        StartAutoSell()
         Notify({Title = "Bypass", Content = "All bypass features enabled", Duration = 3})
     end
 })
@@ -696,6 +831,7 @@ BypassTab:CreateButton({
     Callback = function()
         StopFishingRadar()
         StopDivingGear()
+        StopAutoSell()
         Notify({Title = "Bypass", Content = "All bypass features disabled", Duration = 3})
     end
 })
@@ -851,6 +987,7 @@ SettingsTab:CreateButton({
         DisableAntiLag()
         StopFishingRadar()
         StopDivingGear()
+        StopAutoSell()
         DestroyCoordinateDisplay()
         Rayfield:Destroy()
         Notify({Title = "Unload", Content = "Hub unloaded successfully", Duration = 2})
