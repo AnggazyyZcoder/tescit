@@ -1,5 +1,5 @@
 --//////////////////////////////////////////////////////////////////////////////////
--- Anggazyy Hub - Fish It (FINAL) + Merchant System FIXED
+-- Anggazyy Hub - Fish It (FINAL)
 -- Rayfield UI + Lucide icons
 -- Clean, modern, professional design
 -- Author: Anggazyy (refactor)
@@ -41,15 +41,10 @@ local autoSellEnabled = false
 local autoSellThreshold = 3
 local autoSellLoop = nil
 
--- Merchant System Variables
-local merchantItems = {}
-local selectedMerchantItem = nil
-local selectedItemPrice = 0
-local selectedItemId = nil
-local autoBuyEnabled = false
-local autoBuyLoop = nil
-local itemPriceLabel = nil
-local ShopHelper = nil
+-- Perfect Cast Fishing Variables
+local manualFishingEnabled = false
+local currentFishingPower = 0.7 -- Default power (70%)
+local manualFishLoopThread = nil
 
 -- UI Configuration
 local COLOR_ENABLED = Color3.fromRGB(76, 175, 80)  -- Green
@@ -98,492 +93,6 @@ local function Notify(opts)
         })
     end)
 end
-
--- =============================================================================
--- SHOP HELPER MODULE - FIXED VERSION
--- =============================================================================
-
-local function InitializeShopHelper()
-    local ShopHelper = {}
-    
-    -- Dependencies
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local RunService = game:GetService("RunService")
-
-    -- Attempt to require the merchant/shop module if exists.
-    local ok, MerchantModule = pcall(function()
-        return require(ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Merchant") or ReplicatedStorage:FindFirstChild("Merchant"))
-    end)
-    if not ok then
-        MerchantModule = nil
-    end
-
-    -- Required utilities from the decompiled code environment
-    local Replion = nil
-    pcall(function()
-        Replion = require(ReplicatedStorage.Packages.Replion).Client
-    end)
-
-    local Net = nil
-    pcall(function()
-        Net = require(ReplicatedStorage.Packages.Net)
-    end)
-
-    -- Fallback RemoteFunction name seen in code: "PurchaseMarketItem"
-    local PurchaseRemoteFn = nil
-    if Net then
-        pcall(function()
-            PurchaseRemoteFn = Net:RemoteFunction("PurchaseMarketItem")
-        end)
-    end
-    if not PurchaseRemoteFn then
-        PurchaseRemoteFn = ReplicatedStorage:FindFirstChild("PurchaseMarketItem")
-    end
-
-    -- Internal state for auto-buy
-    local autoBuyTask = nil
-    local autoBuyActive = false
-
-    -- Helper: get merchant replion data object
-    local function getMerchantReplion()
-        if not Replion then
-            return nil, "Replion package not available"
-        end
-        local merchant = Replion:WaitReplion("Merchant")
-        if not merchant then
-            return nil, "Merchant Replion not found"
-        end
-        return merchant
-    end
-
-    -- Helper: wrapper to get Market data for an ID using merchant module if available
-    local function getMarketDataFromId(itemId)
-        -- prefer MerchantModule:GetMarketDataFromId if exists
-        if MerchantModule and type(MerchantModule.GetMarketDataFromId) == "function" then
-            local ok2, res = pcall(function() return MerchantModule:GetMarketDataFromId(nil, itemId) end)
-            if ok2 and res then
-                return res
-            end
-        end
-
-        -- Fallback: try to read MarketItemData in ReplicatedStorage.Shared if present
-        local ok3, MarketItemData = pcall(function() 
-            return require(ReplicatedStorage.Shared and ReplicatedStorage.Shared.MarketItemData or ReplicatedStorage:FindFirstChild("MarketItemData"))
-        end)
-        if ok3 and type(MarketItemData) == "table" then
-            for _, v in ipairs(MarketItemData) do
-                if v.Id == itemId then
-                    return v
-                end
-            end
-        end
-
-        return nil
-    end
-
-    -- List all items in shop and print name + price
-    function ShopHelper.listShopItems()
-        local merchant, err = getMerchantReplion()
-        if not merchant then
-            -- Fallback: Try alternative methods to get shop items
-            local fallbackItems = {}
-            
-            -- Method 1: Check ReplicatedStorage for shop items
-            local shopFolder = ReplicatedStorage:FindFirstChild("ShopItems") 
-                or ReplicatedStorage:FindFirstChild("Shop") 
-                or ReplicatedStorage:FindFirstChild("Items")
-            
-            if shopFolder then
-                for _, item in pairs(shopFolder:GetChildren()) do
-                    local price = 0
-                    if item:FindFirstChild("Price") then
-                        price = item.Price.Value
-                    elseif item:FindFirstChild("Cost") then
-                        price = item.Cost.Value
-                    end
-                    
-                    table.insert(fallbackItems, {
-                        id = item.Name,
-                        data = {
-                            Name = item.Name,
-                            Price = price,
-                            Currency = "$"
-                        }
-                    })
-                end
-                return fallbackItems
-            end
-            
-            -- Method 2: Hardcoded fallback items
-            return {
-                {id = "FishingRod", data = {Name = "Fishing Rod", Price = 100, Currency = "$"}},
-                {id = "AdvancedRod", data = {Name = "Advanced Rod", Price = 500, Currency = "$"}},
-                {id = "FishingBait", data = {Name = "Fishing Bait", Price = 25, Currency = "$"}},
-                {id = "GoldenHook", data = {Name = "Golden Hook", Price = 1000, Currency = "$"}}
-            }
-        end
-
-        local items = merchant:GetExpect("Items") or {}
-        local result = {}
-
-        print("📦 Shop items:")
-        for i, id in ipairs(items) do
-            local marketData = getMarketDataFromId(id)
-            if marketData then
-                local name = marketData.Name or ("Item-" .. tostring(id))
-                local price = marketData.Price or "N/A"
-                local currency = marketData.Currency or ""
-                print(string.format("  [%s] %s  |  Price: %s %s", tostring(id), tostring(name), tostring(price), tostring(currency)))
-                table.insert(result, { id = id, data = marketData })
-            else
-                print(string.format("  [%s] (no market metadata)", tostring(id)))
-                table.insert(result, { id = id, data = nil })
-            end
-        end
-
-        return result
-    end
-
-    -- Find item id + marketData by name
-    function ShopHelper.findItemByName(name)
-        if not name then return nil end
-        local items = ShopHelper.listShopItems()
-        for _, item in ipairs(items) do
-            if item.data and item.data.Name then
-                if string.lower(tostring(item.data.Name)) == string.lower(tostring(name)) then
-                    return item.id, item.data
-                end
-            end
-        end
-        return nil
-    end
-
-    -- Core: Attempt to purchase
-    function ShopHelper.buyItemById(itemId, marketData)
-        if not itemId then
-            return false, "no itemId"
-        end
-
-        -- Try to use MerchantModule:InitiatePurchase if available
-        if MerchantModule and type(MerchantModule.InitiatePurchase) == "function" then
-            local ok, res = pcall(function()
-                return MerchantModule:InitiatePurchase(nil, itemId, marketData or getMarketDataFromId(itemId))
-            end)
-            if ok then
-                return true, "InitiatePurchase invoked (module)"
-            else
-                warn("[ShopHelper] MerchantModule.InitiatePurchase error:", res)
-            end
-        end
-
-        -- Fallback: try remote function
-        if PurchaseRemoteFn then
-            local ok2, res2 = pcall(function()
-                if type(PurchaseRemoteFn.InvokeServer) == "function" then
-                    return PurchaseRemoteFn:InvokeServer(itemId)
-                else
-                    return PurchaseRemoteFn(itemId)
-                end
-            end)
-            if ok2 then
-                return true, "PurchaseRemoteFn invoked (fallback)"
-            else
-                return false, ("PurchaseRemoteFn failed: %s"):format(tostring(res2))
-            end
-        end
-
-        return false, "no purchase method available"
-    end
-
-    -- Convenience: buy by name
-    function ShopHelper.buyItemByName(name)
-        local id, data = ShopHelper.findItemByName(name)
-        if not id then
-            return false, "item not found"
-        end
-        return ShopHelper.buyItemById(id, data)
-    end
-
-    -- Auto-buy system
-    function ShopHelper.toggleAutoBuy(target, enabled, interval)
-        interval = tonumber(interval) or 5
-
-        -- stop previous task if any
-        if autoBuyTask and autoBuyActive then
-            autoBuyActive = false
-            autoBuyTask = nil
-        end
-
-        if not enabled then
-            return true, "auto-buy disabled"
-        end
-
-        -- determine id + data
-        local itemId, marketData
-        if type(target) == "number" or tonumber(target) then
-            itemId = tonumber(target)
-            marketData = getMarketDataFromId(itemId)
-        else
-            itemId, marketData = ShopHelper.findItemByName(tostring(target))
-        end
-
-        if not itemId then
-            return false, "target item not found"
-        end
-
-        -- start a background loop
-        autoBuyActive = true
-        autoBuyTask = task.spawn(function()
-            while autoBuyActive do
-                local success, msg = pcall(function()
-                    local ok, m = ShopHelper.buyItemById(itemId, marketData)
-                    if ok then
-                        print(("[ShopHelper] Auto-buy attempt for %s (%s) succeeded"):format(tostring(itemId), tostring(marketData and marketData.Name or "unknown")))
-                    else
-                        warn(("[ShopHelper] Auto-buy attempt for %s failed: %s"):format(tostring(itemId), tostring(m)))
-                    end
-                end)
-                if not success then
-                    warn("[ShopHelper] Auto-buy loop error:", msg)
-                end
-                task.wait(interval)
-            end
-        end)
-
-        return true, "auto-buy started"
-    end
-
-    -- Stop auto-buy
-    function ShopHelper.stopAutoBuy()
-        autoBuyActive = false
-        autoBuyTask = nil
-        print("[ShopHelper] Auto-buy stopped")
-    end
-
-    -- Get market data
-    function ShopHelper.getMarketData(itemId)
-        return getMarketDataFromId(itemId)
-    end
-
-    return ShopHelper
-end
-
--- =============================================================================
--- MERCHANT SYSTEM - IMPROVED VERSION
--- =============================================================================
-
--- Load Shop Helper
-task.spawn(function()
-    local success, helper = pcall(InitializeShopHelper)
-    if success then
-        ShopHelper = helper
-        print("[MERCHANT] ShopHelper initialized successfully")
-    else
-        warn("[MERCHANT] Failed to initialize ShopHelper:", helper)
-        -- Create fallback ShopHelper
-        ShopHelper = {
-            listShopItems = function()
-                return {
-                    {id = "FishingRod", data = {Name = "Fishing Rod", Price = 100, Currency = "$"}},
-                    {id = "AdvancedRod", data = {Name = "Advanced Rod", Price = 500, Currency = "$"}},
-                    {id = "FishingBait", data = {Name = "Fishing Bait", Price = 25, Currency = "$"}},
-                    {id = "GoldenHook", data = {Name = "Golden Hook", Price = 1000, Currency = "$"}},
-                    {id = "DivingSuit", data = {Name = "Diving Suit", Price = 750, Currency = "$"}}
-                }
-            end,
-            buyItemByName = function(name)
-                Notify({Title = "Merchant", Content = "Purchased: " .. name, Duration = 3})
-                return true
-            end
-        }
-    end
-end)
-
--- Get merchant items dengan multiple fallback methods
-function GetShopItems()
-    local shopItems = {}
-    
-    -- Method 1: Use ShopHelper jika available
-    if ShopHelper then
-        local success, items = pcall(function()
-            return ShopHelper.listShopItems()
-        end)
-        
-        if success and items and #items > 0 then
-            for _, item in ipairs(items) do
-                if item.data then
-                    table.insert(shopItems, {
-                        Name = item.data.Name or tostring(item.id),
-                        Price = item.data.Price or 0,
-                        Currency = item.data.Currency or "$",
-                        Id = item.id,
-                        DisplayName = (item.data.Name or tostring(item.id)) .. " - " .. (item.data.Currency or "$") .. (item.data.Price or 0)
-                    })
-                end
-            end
-            return shopItems
-        end
-    end
-    
-    -- Method 2: Check ReplicatedStorage directly
-    local shopFolder = ReplicatedStorage:FindFirstChild("ShopItems") 
-        or ReplicatedStorage:FindFirstChild("Shop") 
-        or ReplicatedStorage:FindFirstChild("Items")
-        or ReplicatedStorage:FindFirstChild("Products")
-    
-    if shopFolder then
-        for _, item in pairs(shopFolder:GetChildren()) do
-            local price = 0
-            if item:FindFirstChild("Price") then
-                price = item.Price.Value
-            elseif item:FindFirstChild("Cost") then
-                price = item.Cost.Value
-            elseif item:FindFirstChild("Value") then
-                price = item.Value.Value
-            end
-            
-            table.insert(shopItems, {
-                Name = item.Name,
-                Price = price,
-                Currency = "$",
-                Id = item.Name,
-                DisplayName = item.Name .. " - $" .. price
-            })
-        end
-        return shopItems
-    end
-    
-    -- Method 3: Hardcoded fallback items
-    return {
-        {Name = "Fishing Rod", Price = 100, Currency = "$", Id = "FishingRod", DisplayName = "Fishing Rod - $100"},
-        {Name = "Advanced Rod", Price = 500, Currency = "$", Id = "AdvancedRod", DisplayName = "Advanced Rod - $500"},
-        {Name = "Fishing Bait", Price = 25, Currency = "$", Id = "FishingBait", DisplayName = "Fishing Bait - $25"},
-        {Name = "Golden Hook", Price = 1000, Currency = "$", Id = "GoldenHook", DisplayName = "Golden Hook - $1000"},
-        {Name = "Diving Suit", Price = 750, Currency = "$", Id = "DivingSuit", DisplayName = "Diving Suit - $750"}
-    }
-end
-
--- Buy item function
-function BuyItem(itemName)
-    if ShopHelper then
-        local success, result = pcall(function()
-            return ShopHelper.buyItemByName(itemName)
-        end)
-        
-        if success then
-            return result
-        end
-    end
-    
-    -- Fallback purchase method
-    local RemotePurchase = ReplicatedStorage:FindFirstChild("InitiatePurchase") 
-        or ReplicatedStorage:FindFirstChild("PurchaseItem")
-        or ReplicatedStorage:FindFirstChild("BuyItem")
-    
-    if RemotePurchase then
-        if RemotePurchase:IsA("RemoteEvent") then
-            RemotePurchase:FireServer(itemName)
-        elseif RemotePurchase:IsA("RemoteFunction") then
-            RemotePurchase:InvokeServer(itemName)
-        end
-        return true
-    end
-    
-    return false
-end
-
--- Auto Buy System
-function ToggleAutoBuy(state, selected)
-    autoBuyEnabled = state
-    selectedMerchantItem = selected
-
-    if autoBuyLoop then
-        task.cancel(autoBuyLoop)
-        autoBuyLoop = nil
-    end
-
-    if autoBuyEnabled and selectedMerchantItem then
-        autoBuyLoop = task.spawn(function()
-            while autoBuyEnabled do
-                local success = BuyItem(selectedMerchantItem)
-                if success then
-                    Notify({
-                        Title = "Auto Buy", 
-                        Content = "Membeli: " .. selectedMerchantItem,
-                        Duration = 2
-                    })
-                end
-                task.wait(5)
-            end
-        end)
-        Notify({
-            Title = "Auto Buy", 
-            Content = "AUTO BUY AKTIF untuk: " .. selectedMerchantItem,
-            Duration = 3
-        })
-    else
-        Notify({
-            Title = "Auto Buy", 
-            Content = "AUTO BUY NONAKTIF",
-            Duration = 2
-        })
-    end
-end
-
--- Update selected item price
-function UpdateSelectedItemPrice(itemName)
-    for _, item in pairs(merchantItems) do
-        if item.Name == itemName then
-            selectedItemPrice = item.Price
-            selectedMerchantItem = itemName
-            selectedItemId = item.Id
-            
-            if itemPriceLabel then
-                pcall(function()
-                    itemPriceLabel:Set("Harga: " .. item.Currency .. item.Price)
-                end)
-            end
-            
-            return item.Price
-        end
-    end
-    return 0
-end
-
--- Buy selected item
-function BuySelectedItem()
-    if not selectedMerchantItem then
-        Notify({
-            Title = "Merchant Error",
-            Content = "Pilih item terlebih dahulu!",
-            Duration = 3
-        })
-        return false
-    end
-    
-    local success = BuyItem(selectedMerchantItem)
-    if success then
-        Notify({
-            Title = "Merchant",
-            Content = "Berhasil membeli: " .. selectedMerchantItem,
-            Duration = 3
-        })
-        return true
-    else
-        Notify({
-            Title = "Merchant Error",
-            Content = "Gagal membeli item!",
-            Duration = 3
-        })
-        return false
-    end
-end
-
--- Load merchant items
-task.spawn(function()
-    merchantItems = GetShopItems()
-    print("[MERCHANT] Loaded " .. #merchantItems .. " items")
-end)
 
 -- Network Communication
 local function GetAutoFishRemote()
@@ -660,6 +169,201 @@ local function StopAutoFish()
     pcall(function()
         SafeInvokeAutoFishing(false)
     end)
+end
+
+-- =============================================================================
+-- PERFECT CAST FISHING SYSTEM - MANUAL POWER CONTROL
+-- =============================================================================
+
+local function GetFishingRemote()
+    local ok, NetModule = pcall(function()
+        local folder = ReplicatedStorage:WaitForChild(NET_PACKAGES_FOLDER, 5)
+        if folder then
+            local netCandidate = folder:FindFirstChild("Net")
+            if netCandidate and netCandidate:IsA("ModuleScript") then
+                return require(netCandidate)
+            end
+        end
+        if ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Net") then
+            local m = ReplicatedStorage.Packages.Net
+            if m:IsA("ModuleScript") then
+                return require(m)
+            end
+        end
+        return nil
+    end)
+    return ok and NetModule or nil
+end
+
+-- Fungsi untuk memancing dengan power yang bisa diatur
+local function CastFishingRod(powerLevel)
+    pcall(function()
+        local Net = GetFishingRemote()
+        if Net and type(Net.RemoteFunction) == "function" then
+            -- RemoteFunction untuk charge fishing rod
+            local ok, chargeRF = pcall(function() 
+                return Net:RemoteFunction("ChargeFishingRod") 
+            end)
+            
+            if ok and chargeRF then
+                -- Dapatkan waktu server untuk sync
+                local serverTime = workspace:GetServerTimeNow()
+                
+                -- Invoke charging dengan power yang diinginkan
+                local success, responseTime = pcall(function()
+                    return chargeRF:InvokeServer(nil, nil, powerLevel, serverTime)
+                end)
+                
+                if success then
+                    print("Fishing cast dengan power:", powerLevel)
+                    return true
+                end
+            end
+            
+            -- Fallback: RemoteFunction untuk fishing request
+            local ok2, fishingRF = pcall(function() 
+                return Net:RemoteFunction("RequestFishingMinigameStarted") 
+            end)
+            
+            if ok2 and fishingRF then
+                -- Hitung posisi lemparan (tengah screen)
+                local viewportSize = game:GetService("Workspace").CurrentCamera.ViewportSize
+                local castPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+                
+                local success, result = pcall(function()
+                    return fishingRF:InvokeServer(castPosition, powerLevel, workspace:GetServerTimeNow())
+                end)
+                
+                if success then
+                    print("Fishing cast berhasil dengan power:", powerLevel)
+                    return true
+                end
+            end
+        end
+        
+        -- Fallback ke RemoteFunction langsung
+        local rfObj = ReplicatedStorage:FindFirstChild("ChargeFishingRod") 
+            or ReplicatedStorage:FindFirstChild("RequestFishingMinigameStarted")
+            or (ReplicatedStorage:FindFirstChild("RemoteFunctions") and 
+                (ReplicatedStorage.RemoteFunctions:FindFirstChild("ChargeFishingRod") or 
+                 ReplicatedStorage.RemoteFunctions:FindFirstChild("RequestFishingMinigameStarted")))
+        
+        if rfObj and rfObj:IsA("RemoteFunction") then
+            local success = pcall(function()
+                if rfObj.Name == "ChargeFishingRod" then
+                    rfObj:InvokeServer(nil, nil, powerLevel, workspace:GetServerTimeNow())
+                else
+                    local viewportSize = game:GetService("Workspace").CurrentCamera.ViewportSize
+                    local castPosition = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+                    rfObj:InvokeServer(castPosition, powerLevel, workspace:GetServerTimeNow())
+                end
+            end)
+            
+            if success then
+                print("Fishing cast berhasil dengan power:", powerLevel)
+                return true
+            end
+        end
+    end)
+    
+    return false
+end
+
+-- Fungsi untuk stop fishing manual
+local function StopFishing()
+    pcall(function()
+        local Net = GetFishingRemote()
+        if Net and type(Net.RemoteFunction) == "function" then
+            local ok, stopRF = pcall(function() 
+                return Net:RemoteFunction("CancelFishingInputs") 
+            end)
+            
+            if ok and stopRF then
+                pcall(function() stopRF:InvokeServer() end)
+                return
+            end
+        end
+        
+        local rfObj = ReplicatedStorage:FindFirstChild("CancelFishingInputs") 
+            or (ReplicatedStorage:FindFirstChild("RemoteFunctions") and 
+                ReplicatedStorage.RemoteFunctions:FindFirstChild("CancelFishingInputs"))
+        
+        if rfObj and rfObj:IsA("RemoteFunction") then
+            pcall(function() rfObj:InvokeServer() end)
+        end
+    end)
+end
+
+-- System Manual Fishing dengan Power Control
+local function StartManualFishing(power)
+    if manualFishingEnabled then return end
+    manualFishingEnabled = true
+    
+    -- Set power jika diberikan
+    if power then
+        currentFishingPower = math.clamp(power, 0.1, 1.0)
+    end
+    
+    if statusParagraph then 
+        pcall(function() 
+            statusParagraph:Set("Status: MANUAL FISHING - Power: " .. math.floor(currentFishingPower * 100) .. "%")
+        end) 
+    end
+    Notify({Title = "Perfect Cast Fishing", Content = "Started with power: " .. math.floor(currentFishingPower * 100) .. "%", Duration = 2})
+
+    manualFishLoopThread = task.spawn(function()
+        while manualFishingEnabled do
+            pcall(function()
+                -- Cast fishing rod dengan power yang ditentukan
+                local success = CastFishingRod(currentFishingPower)
+                if success then
+                    print("Manual fishing cast dengan power:", currentFishingPower)
+                else
+                    print("Gagal casting fishing rod")
+                end
+            end)
+            
+            -- Tunggu sebelum cast berikutnya (bisa disesuaikan)
+            task.wait(3) -- 3 detik antara cast
+        end
+    end)
+end
+
+local function StopManualFishing()
+    if not manualFishingEnabled then return end
+    manualFishingEnabled = false
+    
+    -- Stop fishing yang sedang berjalan
+    pcall(function()
+        StopFishing()
+    end)
+    
+    if statusParagraph then 
+        pcall(function() 
+            statusParagraph:Set("Status: DISABLED")
+        end) 
+    end
+    Notify({Title = "Perfect Cast Fishing", Content = "Stopped", Duration = 2})
+    
+    if manualFishLoopThread then
+        task.cancel(manualFishLoopThread)
+        manualFishLoopThread = nil
+    end
+end
+
+-- Fungsi untuk mengatur power fishing
+local function SetFishingPower(powerLevel)
+    powerLevel = math.clamp(powerLevel, 0.1, 1.0)
+    currentFishingPower = powerLevel
+    
+    if manualFishingEnabled and statusParagraph then
+        pcall(function() 
+            statusParagraph:Set("Status: MANUAL FISHING - Power: " .. math.floor(powerLevel * 100) .. "%")
+        end) 
+    end
+    
+    Notify({Title = "Fishing Power", Content = "Set to: " .. math.floor(powerLevel * 100) .. "%", Duration = 1})
+    return currentFishingPower
 end
 
 -- =============================================================================
@@ -1226,20 +930,23 @@ InfoTab:CreateParagraph({
     Content = "Premium fishing automation with performance optimization"
 })
 
--- ========== AUTO SYSTEM TAB ==========
-local AutoTab = Window:CreateTab("Automation", "fish")
+-- ========== FISHING TAB ==========
+local FishingTab = Window:CreateTab("Fishing", "fish")
 
-AutoTab:CreateParagraph({
-    Title = "Auto Fishing System",
-    Content = "Automated fishing with server communication"
+FishingTab:CreateParagraph({
+    Title = "Fishing Automation System",
+    Content = "Multiple fishing modes with power control"
 })
 
-statusParagraph = AutoTab:CreateParagraph({
+statusParagraph = FishingTab:CreateParagraph({
     Title = "Status:",
     Content = "DISABLED"
 })
 
-AutoTab:CreateToggle({
+-- Auto Fishing Section
+FishingTab:CreateSection("Auto Fishing")
+
+FishingTab:CreateToggle({
     Name = "Enable Auto Fishing",
     CurrentValue = false,
     Flag = "AutoFishToggle",
@@ -1252,193 +959,74 @@ AutoTab:CreateToggle({
     end
 })
 
--- ========== MERCHANT TAB ==========
-local MerchantTab = Window:CreateTab("Merchant", "shopping-cart")
+-- Perfect Cast Fishing Section
+FishingTab:CreateSection("Perfect Cast Fishing")
 
-MerchantTab:CreateParagraph({
-    Title = "Merchant System",
-    Content = "Buy items from shop with auto-buy feature"
-})
-
--- Item Selection Section
-MerchantTab:CreateSection("Item Selection")
-
--- Create dropdown dengan placeholder
-local itemDropdown = MerchantTab:CreateDropdown({
-    Name = "Select Item to Buy",
-    Options = {"Loading items... Please wait"},
-    CurrentOption = "Loading items... Please wait",
-    Flag = "MerchantItemSelect",
-    Callback = function(selected)
-        if selected ~= "Loading items... Please wait" then
-            -- Extract item name from display name
-            local itemName = selected:gsub(" %- %$%d+", "") -- Remove price part
-            itemName = itemName:gsub(" %- %$%d+%.%d+", "") -- Remove decimal prices
-            local price = UpdateSelectedItemPrice(itemName)
-            
-            Notify({
-                Title = "Item Selected",
-                Content = itemName .. " - $" .. price,
-                Duration = 3
-            })
+FishingTab:CreateToggle({
+    Name = "Perfect Cast Fishing",
+    CurrentValue = false,
+    Flag = "PerfectCastToggle",
+    Callback = function(state)
+        if state then
+            StartManualFishing()
+        else
+            StopManualFishing()
         end
     end
 })
 
--- Price Display
-itemPriceLabel = MerchantTab:CreateParagraph({
-    Title = "Selected Item Price:",
-    Content = "Harga: $0"
-})
-
--- Purchase Section
-MerchantTab:CreateSection("Purchase Actions")
-
-MerchantTab:CreateButton({
-    Name = "🛒 BUY SELECTED ITEM",
-    Callback = function()
-        BuySelectedItem()
-    end
-})
-
-MerchantTab:CreateToggle({
-    Name = "Auto Buy Selected Item",
-    CurrentValue = false,
-    Flag = "AutoBuyToggle",
-    Callback = function(state)
-        ToggleAutoBuy(state, selectedMerchantItem)
-    end
-})
-
-MerchantTab:CreateSlider({
-    Name = "Auto Buy Delay",
-    Range = {1, 30},
-    Increment = 1,
-    CurrentValue = 5,
-    Suffix = "seconds",
-    Flag = "AutoBuyDelay",
+FishingTab:CreateSlider({
+    Name = "Fishing Power",
+    Range = {10, 100},
+    Increment = 5,
+    CurrentValue = 70,
+    Suffix = "% power",
+    Flag = "FishingPower",
     Callback = function(value)
-        Notify({
-            Title = "Auto Buy",
-            Content = "Delay set to " .. value .. " seconds",
-            Duration = 2
-        })
+        SetFishingPower(value / 100)
+    end
+})
+
+FishingTab:CreateButton({
+    Name = "Single Cast (Current Power)",
+    Callback = function()
+        if not manualFishingEnabled then
+            CastFishingRod(currentFishingPower)
+            Notify({
+                Title = "Single Cast", 
+                Content = "Casted with " .. math.floor(currentFishingPower * 100) .. "% power",
+                Duration = 2
+            })
+        else
+            Notify({
+                Title = "Warning", 
+                Content = "Stop Perfect Cast Fishing first for single cast",
+                Duration = 3
+            })
+        end
     end
 })
 
 -- Quick Actions Section
-MerchantTab:CreateSection("Quick Actions")
+FishingTab:CreateSection("Quick Actions")
 
-MerchantTab:CreateButton({
-    Name = "Refresh Item List",
+FishingTab:CreateButton({
+    Name = "Start All Fishing Modes",
     Callback = function()
-        Notify({
-            Title = "Merchant",
-            Content = "Loading items...",
-            Duration = 2
-        })
-        
-        -- Reload merchant items
-        merchantItems = GetShopItems()
-        local options = {}
-        
-        if #merchantItems > 0 then
-            for _, item in pairs(merchantItems) do
-                table.insert(options, item.DisplayName)
-            end
-            
-            pcall(function()
-                itemDropdown:UpdateOptions(options)
-                itemDropdown:Set(options[1])
-                local initialItem = options[1]:gsub(" %- %$%d+", "")
-                initialItem = initialItem:gsub(" %- %$%d+%.%d+", "")
-                UpdateSelectedItemPrice(initialItem)
-            end)
-            
-            Notify({
-                Title = "Merchant",
-                Content = "Item list refreshed! " .. #options .. " items loaded",
-                Duration = 3
-            })
-        else
-            Notify({
-                Title = "Merchant Error",
-                Content = "No items found! Using fallback items",
-                Duration = 3
-            })
-            
-            -- Fallback items
-            local fallbackOptions = {
-                "Fishing Rod - $100",
-                "Advanced Rod - $500", 
-                "Fishing Bait - $25",
-                "Golden Hook - $1000",
-                "Diving Suit - $750"
-            }
-            
-            pcall(function()
-                itemDropdown:UpdateOptions(fallbackOptions)
-                itemDropdown:Set(fallbackOptions[1])
-                UpdateSelectedItemPrice("Fishing Rod")
-            end)
-        end
+        StartAutoFish()
+        StartManualFishing()
+        Notify({Title = "Fishing", Content = "All fishing modes activated", Duration = 3})
     end
 })
 
-MerchantTab:CreateButton({
-    Name = "Stop Auto Buy",
+FishingTab:CreateButton({
+    Name = "Stop All Fishing",
     Callback = function()
-        ToggleAutoBuy(false, nil)
-        Notify({
-            Title = "Auto Buy",
-            Content = "Auto buy stopped",
-            Duration = 2
-        })
+        StopAutoFish()
+        StopManualFishing()
+        Notify({Title = "Fishing", Content = "All fishing modes stopped", Duration = 3})
     end
 })
-
--- Auto-load items setelah window dibuat
-task.spawn(function()
-    task.wait(3) -- Beri waktu untuk window load
-    
-    merchantItems = GetShopItems()
-    local options = {}
-    
-    if #merchantItems > 0 then
-        for _, item in pairs(merchantItems) do
-            table.insert(options, item.DisplayName)
-        end
-        
-        if #options > 0 then
-            pcall(function()
-                itemDropdown:UpdateOptions(options)
-                itemDropdown:Set(options[1])
-                local initialItem = options[1]:gsub(" %- %$%d+", "")
-                initialItem = initialItem:gsub(" %- %$%d+%.%d+", "")
-                UpdateSelectedItemPrice(initialItem)
-            end)
-            
-            print("[MERCHANT] Successfully loaded " .. #options .. " items")
-        else
-            -- Fallback jika options kosong
-            local fallbackOptions = {
-                "Fishing Rod - $100",
-                "Advanced Rod - $500", 
-                "Fishing Bait - $25",
-                "Golden Hook - $1000",
-                "Diving Suit - $750"
-            }
-            
-            pcall(function()
-                itemDropdown:UpdateOptions(fallbackOptions)
-                itemDropdown:Set(fallbackOptions[1])
-                UpdateSelectedItemPrice("Fishing Rod")
-            end)
-            
-            print("[MERCHANT] Using fallback items")
-        end
-    end
-end)
 
 -- ========== BYPASS TAB ==========
 local BypassTab = Window:CreateTab("Bypass", "radar")
@@ -1693,12 +1281,12 @@ SettingsTab:CreateButton({
     Name = "Unload Hub",
     Callback = function()
         StopAutoFish()
+        StopManualFishing()
         StopLockPosition()
         DisableAntiLag()
         StopFishingRadar()
         StopDivingGear()
         StopAutoSell()
-        ToggleAutoBuy(false, nil) -- Stop auto buy
         DestroyCoordinateDisplay()
         Rayfield:Destroy()
         Notify({Title = "Unload", Content = "Hub unloaded successfully", Duration = 2})
@@ -1750,40 +1338,9 @@ Rayfield:LoadConfiguration()
 -- Initial Notification
 Notify({
     Title = "Anggazyy Hub Ready", 
-    Content = "System initialized successfully with Merchant features",
+    Content = "System initialized successfully",
     Duration = 4
 })
-
--- Auto-refresh merchant items setelah beberapa detik
-task.spawn(function()
-    task.wait(5)
-    if itemDropdown then
-        local currentOption = "Loading items... Please wait"
-        pcall(function()
-            currentOption = itemDropdown.CurrentOption
-        end)
-        
-        if currentOption == "Loading items... Please wait" then
-            -- Force refresh items
-            merchantItems = GetShopItems()
-            local options = {}
-            
-            for _, item in pairs(merchantItems) do
-                table.insert(options, item.DisplayName)
-            end
-            
-            if #options > 0 then
-                pcall(function()
-                    itemDropdown:UpdateOptions(options)
-                    itemDropdown:Set(options[1])
-                    local initialItem = options[1]:gsub(" %- %$%d+", "")
-                    initialItem = initialItem:gsub(" %- %$%d+%.%d+", "")
-                    UpdateSelectedItemPrice(initialItem)
-                end)
-            end
-        end
-    end
-end)
 
 --//////////////////////////////////////////////////////////////////////////////////
 -- System Initialization Complete
